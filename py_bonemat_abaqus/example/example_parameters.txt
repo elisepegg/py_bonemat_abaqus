@@ -1,0 +1,92 @@
+## parameters.txt
+## 	- an input file for the python program 'bonemat_abaqus'
+##      - note: any text beginning with a # will be ignored
+
+## BoneMat options
+## ===============
+    ## define modulus calculation
+    ## --------------------------
+    # integration = None # equivalent to BoneMat V1
+    # integration = HU   # equivalent to BoneMat V2
+    integration = E      # equivalent to BoneMat V3
+
+    ## define how to group modulus values into bins
+    ## -------------------------------------------
+    gapValue = 1
+    # groupingDensity = mean
+    groupingDensity = max 
+    
+    ## integration order
+    ## -----------------
+    intSteps = 4 
+    
+## CT calibration coefficients [rhoQCT = rhoQCTa + (rhoQCTb * HU)]
+## ===============================================================
+    rhoQCTa = 1.3152
+    rhoQCTb = 0.6944
+
+## CT calibration correction [rhoAsh = rhoAsha + (rhoAshb * rhoQCT)]
+## =================================================================
+    # calibrationCorrect = True # if true will perform correction
+    calibrationCorrect = False # if false then will skip this step
+
+    ## define whether to use a single, or triple, set of correction parameters
+    ##------------------------------------------------------------------------
+    # numCTparam = single
+    numCTparam = triple
+
+    ## define the thresholds
+    ## --------------------
+    rhoThresh1 = 0 # note: must be lowest threshold
+    rhoThresh2 = 5 # note: must be highest threshold
+
+    ## define the first set
+    ## --------------------
+    rhoAsha1 = 0
+    rhoAshb1 = 1
+    
+    ## define the second set
+    ## ---------------------
+    rhoAsha2 = 0
+    rhoAshb2 = 1
+
+    ## define the third set
+    ## --------------------
+    rhoAsha3 = 0
+    rhoAshb3 = 1
+
+## Modulus calculation [E = a + (b * RhoAsh) ^ c]
+## =============================================
+    ## define whether to use a single, or triple, set of parameters
+    ## ------------------------------------------------------------
+    numEparam = single
+    #numEparam = triple
+
+    ## define the thresholds
+    ## ---------------------
+    # (not necessary for single definition)
+    # Ethresh1 = 0 # note: must be lowest threshold
+    # Ethresh2 = 0 # note: must be highest threshold
+    
+    ## define the first set
+    ## --------------------
+    Ea1 = 0
+    Eb1 = 0.0105
+    Ec1 = 2.29
+
+    ## define the second set
+    ## ---------------------
+    #Ea2 = 0
+    #Eb2 = 1
+    #Ec2 = 1
+
+    ## define the third set
+    ## --------------------
+    #Ea3 = 0
+    #Eb3 = 1
+    #Ec3 = 1
+
+    ## other
+    ## -----
+    minVal = 0.000001 # HU below this are assumed to be equal to minVal
+    poisson = 0.35 # poisson's ratio to use for bone in the model

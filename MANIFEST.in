@@ -1,0 +1,5 @@
+include README.rst
+include LICENSE.txt
+include gpl.txt
+recursive-include py_bonemat_abaqus/example *
+recursive-include py_bonemat_abaqus/tests *

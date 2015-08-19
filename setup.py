@@ -5,6 +5,9 @@ from os import path
 # get current path
 here = path.abspath(path.dirname(__file__))
 
+# find the version
+exec(open(path.join('py_bonemat_abaqus','version.py')).read())
+
 # function to open the readme file
 def readme():
     with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
@@ -12,7 +15,7 @@ def readme():
     
 # define setup
 setup(name='py_bonemat_abaqus',
-      version='1.0.1',
+      version=__version__,
       description='Assign material properties of bone to a finite element mesh',
       long_description=readme(),
       classifiers=[

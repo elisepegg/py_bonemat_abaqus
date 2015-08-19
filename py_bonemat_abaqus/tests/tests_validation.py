@@ -13,8 +13,7 @@
 # The CT scan which was used for the testing was that of a foot, downloaded from
 #     www.osirix-viewer.com/datasets
 #
-# Version 1.0.1
-# Created by Elise Pegg, University of Oxford, Aug 2015
+# Created by Elise Pegg, University of Oxford
 
 #------------------------------------------------------------------------------
 # Import modules

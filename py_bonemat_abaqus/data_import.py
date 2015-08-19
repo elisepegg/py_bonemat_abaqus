@@ -254,7 +254,8 @@ def _get_lines(startstring, endstring, lines):
     
     # return the lines
     startstop = comb[d.index(min(pos))]
-    return lines[startstop[0]:startstop[1]]
+    final_lines = lines[startstop[0]:startstop[1]]
+    return final_lines
 
 def _get_elename(lines):
     """ Identifies type of element """

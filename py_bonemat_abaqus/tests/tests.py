@@ -7,8 +7,7 @@
 # To run tests, in main py_bonemat_abaqus working directory type:
 #    >>> nosetests
 #
-# Version: 1.0.0=1
-# Created by Elise Pegg, University of Oxford, Aug 2015
+# Created by Elise Pegg, University of Oxford
 
 #-------------------------------------------------------------------------------
 # Import modules

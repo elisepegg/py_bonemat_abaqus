@@ -20,6 +20,10 @@
     ## -----------------
     intSteps = 4 
     
+    ## ignore certain parts (must separate with semi-colon)
+    ## ----------------------------------------------------
+    ignore = ACL; pin
+    
 ## CT calibration coefficients [rhoQCT = rhoQCTa + (rhoQCTb * HU)]
 ## ===============================================================
     rhoQCTa = 1.3152

@@ -3,8 +3,7 @@
 # py_bonemat_abaqus - data import
 # ===============================
 #
-# Version: 1.0.1
-# Created by Elise Pegg, University of Oxford, Aug 2015
+# Created by Elise Pegg, University of Oxford
 
 __all__ = ['import_parameters','import_mesh','import_ct_data']
            
@@ -134,7 +133,8 @@ def _get_part_data(lines, partname, ignore=False):
     test_output(partlines)
 
     # check for any co-ordinate transformations
-    transform = _get_transform_data(lines)
+    assemblylines = _get_lines(r'\*Assembly', r'\*EndAssembly\n', lines)
+    transform = _get_transform_data(assemblylines, partname)
     
     # read nodes
     nodes = _get_nodes(partlines)
@@ -153,8 +153,8 @@ def _get_part_data(lines, partname, ignore=False):
 
     return part
 
-def _get_transform_data(lines):
-    instancelines = _get_lines(r'\*Instance', r'EndInstance\n', lines)
+def _get_transform_data(lines, partname):
+    instancelines = _get_lines(r'\*Instance,name=[-\w]+,part=' + partname, r'\*EndInstance\n', lines)
     test_output(instancelines)
     if len(instancelines.split('\n')) <3:
         transform = [[0,0,0]]
@@ -202,7 +202,9 @@ def _get_nodes(lines):
     """ Identifies node data from lines """
     
     # get lines relevant to nodes
-    nodelines = _get_lines(r'\*Node\n', r'\*', lines)
+    lines = lines.replace('*Node','**Node')
+    nodetext = re.findall(r'\*Node\n([\d,eE.\-\n]+)\*', lines)
+    nodelines = ''.join(nodetext)
     test_output(nodelines)
     
     # identify node data from lines
@@ -472,6 +474,20 @@ def _check_dicom_data(dicoms):
         return "Dicom images have different origins"
     elif not len(set(diff([float(d.ImagePositionPatient[2]) for d in dicoms]))) == 1:
         return "Dicom slices are not sequential"
+    elif not len(set([d.ImageOrientationPatient[0] for d in dicoms])) == 1:
+        return "Dicom images have different row cosine orientation"
+    elif not len(set([d.ImageOrientationPatient[1] for d in dicoms])) == 1:
+        return "Dicom images have different row cosine orientation"
+    elif not len(set([d.ImageOrientationPatient[2] for d in dicoms])) == 1:
+        return "Dicom images have different row cosine orientation"
+    elif not len(set([d.ImageOrientationPatient[3] for d in dicoms])) == 1:
+        return "Dicom images have different col cosine orientation"
+    elif not len(set([d.ImageOrientationPatient[4] for d in dicoms])) == 1:
+        return "Dicom images have different col cosine orientation"
+    elif not len(set([d.ImageOrientationPatient[5] for d in dicoms])) == 1:
+        return "Dicom images have different col cosine orientation"
+    elif [float(i) for i in d.ImageOrientationPatient] != [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]:
+        return "ImageOrientation parameter must be [1,0,0,0,1,0]"        
 
 def _read_dicoms(fles, path):
     """ Reads dicom data for all files within directory """
@@ -523,9 +539,9 @@ def _create_lookup(dicoms):
     data = [d.pixel_array for d in dicoms]
     lookup = []
     for k in range(len(data)):
-        for j in range(len(data[0][0])):
-            for i in range(len(data[0])):
-                lookup.append(data[k][i][j])
+        for j in range(len(data[0])):
+            for i in range(len(data[0][0])):
+                lookup.append(data[k][j][i])
                 
     return lookup
 
@@ -571,3 +587,5 @@ def _refine_vtk_lines(lines, key1, key2, key3):
 def test_output(lines):
     if lines is None:
         raise ValueError("Error reading input file, check format")
+    if lines == []:
+        raise ValueError("Error reading input file, check format")        

@@ -3,8 +3,7 @@
 # py_bonemat_abaqus - run
 # ==========================
 #
-# Version: 1.0.1
-# Created by Elise Pegg, University of Oxford, Aug 2015
+# Created by Elise Pegg, University of Oxford
 
 __all__ = ['run']
 
@@ -13,13 +12,14 @@ __all__ = ['run']
 #-------------------------------------------------------------------------------
 import sys, os
 from py_bonemat_abaqus import general, data_import, calc, data_output
+from py_bonemat_abaqus.version import __version__
 
 #-------------------------------------------------------------------------------
 # Define run program
 #-------------------------------------------------------------------------------
 def run(argv0, argv1, argv2):
     print("""
-    ************** PY_BONEMAT ABAQUS 1.0.1 ************
+    ************** PY_BONEMAT ABAQUS """ + __version__ + """ ************
     ** Elise Pegg,  University of Oxford,   Aug 2015 **
     ***************************************************
     """)

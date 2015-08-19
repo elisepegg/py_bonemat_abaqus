@@ -20,7 +20,7 @@ from py_bonemat_abaqus.classes import vtk_data, _calc_lookup
 from py_bonemat_abaqus.data_import import *
 from py_bonemat_abaqus.data_import import _get_param, _what_mesh_filetype, _confirm_eletype
 from py_bonemat_abaqus.data_import import _import_vtk_ct_data, _get_transform_data
-from py_bonemat_abaqus.data_import import _apply_transform, _find_part_names
+from py_bonemat_abaqus.data_import import _apply_transform, _find_part_names, _get_nodes
 from py_bonemat_abaqus.calc import *
 from py_bonemat_abaqus.calc import _identify_voxels_in_tets, _get_hu, _calc_app_density
 from py_bonemat_abaqus.calc import _calc_modulus, _get_mod_intervals, _limit_num_materials
@@ -176,6 +176,7 @@ class check_mesh_import_functions(TestCase):
         self.param = import_parameters(self.parameter_file)
         self.inp_part = import_mesh(self.inp_mesh_file, self.param)
         self.ntr_part = import_mesh(self.ntr_mesh_file, self.param)
+        self.nodes = {'1':[4.0, 5e-08, 3.0], '2': [5.6, 3.0, 4.0]}
 
     def test_can_import_part_names(self):
         self.assertEqual(_find_part_names('\*Part,name=Test\n')[0],'Test')
@@ -200,7 +201,6 @@ class check_mesh_import_functions(TestCase):
     def test_eletype_correct_class(self):
         self.assertIsInstance(self.part2[0].elements[0], linear_hex)
     
-
     def test_can_import_inp_file_data_correctly(self):
         self.assertEqual(self.part[0].elements[0].pts, self.inp_part[0].elements[0].pts,
                          "Inp mesh import pts incorrect")
@@ -208,6 +208,10 @@ class check_mesh_import_functions(TestCase):
                          "Inp mesh import element index incorrect")
         self.assertEqual(self.part[0].elements[0].nodes, self.inp_part[0].elements[0].nodes,
                          "Inp mesh import element nodes incorrect")
+                         
+    def test_can_import_mulitple_node_def_one_part(self):
+        self.assertEqual(_get_nodes('*Node\n1,4.0,5e-8,3\n*Node\n2,5.6,3.0,4.0\n*Element'),
+                         self.nodes)
         
     def test_can_import_ntr_file_data_correctly(self):
         self.assertEqual(self.part3[0].elements[0].pts, self.ntr_part[0].elements[0].pts,
@@ -226,6 +230,7 @@ class check_node_transformation_calculations(TestCase):
     def setUp(self):
         self.transf_str = '*Instance,name=Part-1-1,part=Part-1\n0,0,5\n*EndInstance\n'
         self.transf_str2 = '*Instance,name=Part-1-1,part=Part-1\n0,0,5\n0,0,5,0,0,6,90\n*EndInstance\n'
+        self.transf_str3 = '*Instance,name=Part-1-1,part=Part-1\n*EndInstance\n*Instance,name=Part-2-1,part=Part-2\n0,0,5\n*EndInstance\n'
         self.trans = [[0.,0.,5]]
         self.trans2 = [[0.,0.,5],[0.,0.,5.,0.,0.,6.,90]]
         self.nodes, self.nodes2, self.nodes3 = {},{},{}
@@ -233,12 +238,14 @@ class check_node_transformation_calculations(TestCase):
         self.nodes2['1'] = [1.,1.,5]
         self.nodes3['1'] = [-1.,1.,5.]
         
-        
     def test_can_get_translation_transformation_data(self):
-        self.assertEqual(_get_transform_data(self.transf_str), self.trans)
+        self.assertEqual(_get_transform_data(self.transf_str, 'Part-1'), self.trans)
 
     def test_can_get_rotation_transformation_data(self):
-        self.assertEqual(_get_transform_data(self.transf_str2), self.trans2)
+        self.assertEqual(_get_transform_data(self.transf_str2, 'Part-1'), self.trans2)
+
+    def test_can_get_transformation_data_multiple_parts(self):
+        self.assertEqual(_get_transform_data(self.transf_str3, 'Part-2'), self.trans)        
 
     def test_translation_transform_correctly_applied(self):
         self.assertEqual(round(_apply_transform(self.nodes, self.trans)['1'][0],5),
@@ -279,6 +286,30 @@ class check_can_import_vtk_data_file(TestCase):
 
     def tearDown(self):
         os.remove(self.vtk_fle)
+
+# dicom data import
+
+class check_can_import_dicom_files(TestCase):
+    def setUp(self):
+        self.path = os.path.join('py_bonemat_abaqus','tests','dicom')
+        os.mkdir(self.path)
+        create_dcm_files([os.path.join(self.path,'test1.dcm'),
+                          os.path.join(self.path,'test2.dcm'),
+                          os.path.join(self.path,'test3.dcm')])
+        self.vtk = import_ct_data(self.path)
+        self.lookup = [0, 5, 10, 5, 10, 15, 10, 15, 20,
+                  5, 10, 15, 10, 15, 20, 15, 20, 25,
+                  10, 15, 20, 15, 20, 25, 20, 25, 30]
+    def test_can_import_dicom_lookup_correctly(self):
+        self.assertEqual(self.vtk.lookup, self.lookup,
+                         "VTK data imported from dicoms is incorrect")
+    def tearDown(self):
+        os.remove(os.path.join(self.path,'test1.dcm'))
+        os.remove(os.path.join(self.path,'test2.dcm'))
+        os.remove(os.path.join(self.path,'test3.dcm'))
+        os.remove(os.path.join('py_bonemat_abaqus','tests','dicom.vtk'))
+        os.rmdir(self.path)        
+        
 #-------------------------------------------------------------------------------
 # Check classes.py functions
 #-------------------------------------------------------------------------------
@@ -496,7 +527,6 @@ class check_linear_hex_calculations(TestCase):
 #-------------------------------------------------------------------------------
 # Check calc.py functions
 #-------------------------------------------------------------------------------
-# tests for version 1 software
 class check_v1_correctly_calculates_if_voxel_in_tet(TestCase):
     def setUp(self):
         self.part = create_linear_tet_part()
@@ -652,7 +682,7 @@ class check_refines_modulus_correctly(TestCase):
         self.calc_moduli(self.moduli, self.max_materials)
         extra_mat = len(set(self.moduli_new)) - self.max_materials
         self.assertTrue(extra_mat < 0,
-                         "Refine modulus creates " + repr(extra_mat) + "more materials than specified")
+                         "Refine modulus creates " + repr(extra_mat) + " more materials than specified")
 
     def test_refined_moduli_max_same_previous(self):
         self.calc_moduli(self.moduli, self.max_materials)
@@ -706,7 +736,7 @@ class check_outputs_valid_abaqus_input_file(TestCase):
 
     def test_elements_written_correctly(self):
         self.assertTrue(self.elementlines in self.outputtext,
-                        "Elements written incorrectly to outputfile")
+                        "Elements written incorrectly to outputfile\n")
 
     def test_materials_written_correctly(self):
         self.assertTrue(self.materiallines in self.outputtext,
@@ -860,15 +890,15 @@ LOOKUP_TABLE default
      with open(filename, 'w') as oupf:
          oupf.write(vtk)
 
-def create_dcm_files(filenames):
+def create_dcm_files(filenames, orientation = ['1.000000','0.000000','0.000000','0.000000','1.000000','0.000000']):
     pixel_array = array([[[0,5,10],[5,10,15],[10,15,20]],
                          [[5,10,15],[10,15,20],[15,20,25]],
                          [[10,15,20],[15,20,25],[20,25,30]]])
     origins = [[-1,-1,-1],[-1,-1,0],[-1,-1,1]]
     for n in [0,1,2]:
-        write_dicom(pixel_array[n], filenames[n], origins[n])
+        write_dicom(pixel_array[n], filenames[n], origins[n], orientation)
         
-def write_dicom(pixel_array,filename, origin):   
+def write_dicom(pixel_array,filename, origin, orientation):   
     file_meta = Dataset()
     file_meta.MediaStorageSOPClassUID = 'Secondary Capture Image Storage'
     file_meta.MediaStorageSOPInstanceUID = '1.3.6.1.4.1.9590.100.1.1.111165684411017669021768385720736873780'
@@ -893,6 +923,7 @@ def write_dicom(pixel_array,filename, origin):
     ds.Columns = pixel_array.shape[0]
     ds.Rows = pixel_array.shape[1]
     ds.ImagePositionPatient = origin
+    ds.ImageOrientationPatient = orientation
     ds.PixelSpacing = [1.0, 1.0]
     ds.SliceThickness = 1
     if pixel_array.dtype != np.uint16:

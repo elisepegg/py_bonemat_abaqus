@@ -12,7 +12,7 @@ __all__ = ['output_abq_inp']
 #-------------------------------------------------------------------------------
 # Import modules
 #-------------------------------------------------------------------------------
-from py_bonemat_abaqus.general import _read_text
+from py_bonemat_abaqus.general import _read_text, _remove_eol_r
 from py_bonemat_abaqus.data_import import _find_part_names, _get_lines
 from py_bonemat_abaqus.calc import _get_all_modulus_values
 import os
@@ -39,6 +39,7 @@ def _update_abq_inp(parts, fle, poisson):
 
     # add header lines
     orig_input = _read_text(fle)
+    orig_input = _remove_eol_r(orig_input)
     header = _get_lines('', '\*Part,', orig_input)
     lines = lines + header
 
@@ -53,15 +54,17 @@ def _update_abq_inp(parts, fle, poisson):
             lines = lines + '*Part, name=' + p.name + partlines + '*End Part\n'
 
     # add lines until end of assembly
-    lines = lines + _get_lines('\*End Part', '\*End Assembly', orig_input) + '*End Assembly\n'
+    lines = lines + _get_lines('\*End Part', '\*End Assembly\n', orig_input) + '*End Assembly\n'
 
     # add material lines
     lines = lines + materials
 
     # add any remaining lines
-    lines = lines + _get_lines('\*End Assembly', '$', orig_input)
+    lines = lines + _get_lines('\*End Assembly\n', '$', orig_input)
 
     # remove any blank lines and make EOL character for all operating systems
+    lines = lines.replace('\r','\n')
+    lines = lines.replace('\n\n','\n')
     lines = lines.replace('\n\n','\n')
     lines = lines.replace('\n','\r\n')
 
@@ -93,6 +96,8 @@ def _create_abq_inp(parts, fle, poisson):
     lines = lines + assembly + materials
 
     # remove any blank lines and make EOL character for all operating systems
+    lines = lines.replace('\r','\n')
+    lines = lines.replace('\n\n','\n')
     lines = lines.replace('\n\n','\n')
     lines = lines.replace('\n','\r\n')
 
@@ -234,7 +239,7 @@ def _write_chunks(data, oupf, write_n = True):
             oupf.write(" ")
         oupf.write(d)
     if write_n:
-        oupf.write("\r\n")
+        oupf.write("\n")
 
 def _write_nodes(nodes, oupf):
     """ Writes the nodes in ntr format """
@@ -259,7 +264,7 @@ def _write_nodes(nodes, oupf):
         for i in range(2 - len(repr(int(base)))):
             oupf.write("0")
         oupf.write(repr(int(base)))
-    oupf.write('\r\n')
+    oupf.write('\n')
         
 def _write_ntr_input(elements, ele_code, fname, num_pts):
     """ Writes a part as an .ntr mesh file """
@@ -283,17 +288,17 @@ def _write_ntr_input(elements, ele_code, fname, num_pts):
         # write the title
         title_data = ['25', '0', '0', '1', '0', '0', '0', '0', '0']
         _write_chunks(title_data, oupf)
-        oupf.write("PATRAN Neutral, HyperMesh Template PATRAN/GENERAL\r\n")
+        oupf.write("PATRAN Neutral, HyperMesh Template PATRAN/GENERAL\n")
         # write the summary
         summary_data = ['26', '0', '0', '1', repr(num_nodes), repr(num_eles), '1', '1', '0']
         _write_chunks(summary_data, oupf)
-        oupf.write("  07-27-201510:28:00\r\n")
+        oupf.write("  07-27-201510:28:00\n")
         # write the node data
         for n in node_data:
             line1 = ['1', repr(n[0]), '0', '2', '0', '0', '0', '0', '0']
             _write_chunks(line1, oupf)
             _write_nodes(n[1:], oupf)
-            oupf.write("1G       6       0       0  000000\r\n")
+            oupf.write("1G       6       0       0  000000\n")
         # write the element data
         for e in ele_data:
             ele_data = ['2', repr(e[0]), ele_code, '2', '0', '0', '0', '0', '0']
@@ -301,7 +306,7 @@ def _write_ntr_input(elements, ele_code, fname, num_pts):
             oupf.write("      ")
             ele_data2 = [repr(num_pts), '1', '4', '0']
             _write_chunks(ele_data2, oupf, False)
-            oupf.write(" 0.000000000E+00 0.000000000E+00 0.000000000E+00\r\n")
+            oupf.write(" 0.000000000E+00 0.000000000E+00 0.000000000E+00\n")
             oupf.write("      ")
             ele_data3 = [repr(i) for i in e[1:]]
             _write_chunks(ele_data3, oupf)

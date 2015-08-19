@@ -240,7 +240,7 @@ def _get_lines(startstring, endstring, lines):
 
     # check start and end strings have been found
     if (start_i == []) | (end_i == []):
-        return None
+        return ''
     
     # determine minimum string
     comb = []

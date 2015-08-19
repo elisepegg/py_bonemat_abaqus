@@ -3,8 +3,7 @@
 # py_bonemat_abaqus - calc
 # ========================
 #
-# Version: 1.0.1
-# Created by Elise Pegg, University of Oxford, Aug 2015
+# Created by Elise Pegg, University of Oxford
 
 __all__ = ['calc_mat_props']
 

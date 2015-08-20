@@ -1,4 +1,4 @@
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __date__ = "Aug 2015"
 __author__ = "Elise Pegg, University of Oxford"
 __copyright__ = "Copyright 2015, University of Oxford, UK"

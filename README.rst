@@ -1,7 +1,7 @@
 =================
 py_bonemat_abaqus
 =================
-:Version: Version 1.0.2
+:Version: Version 1.0.3
 :Authors: Dr Elise Pegg (University of Oxford),
           Prof Richie Gill (University of Bath)
 :Email: elise.pegg@ndorms.ox.ac.uk

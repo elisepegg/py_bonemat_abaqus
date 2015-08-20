@@ -54,7 +54,7 @@ def run(argv0, argv1, argv2):
     #---------------------------------------------------------------------------
     # Determine material properties for elements within each part
     #---------------------------------------------------------------------------
-    print("    Calculating material properties [- may take some time]")
+    print("    Calculating material properties")
     parts = calc.calc_mat_props(parts, param, vtk_data)
 
     #---------------------------------------------------------------------------
@@ -71,3 +71,4 @@ def run(argv0, argv1, argv2):
     **   !!! Bone material assignment complete !!!   **
     ***************************************************
     """)
+    os._exit(0)

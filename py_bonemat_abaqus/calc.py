@@ -50,7 +50,7 @@ def _assign_mat_props(part, param, vtk):
         app_density = [_calc_app_density(hu, param) for hu in HU_data]
 
         # if calibration correction requested, perform correction
-        if param['calibrationCorrect'] in param.keys():
+        if 'calibrationCorrect' in param.keys():
             if param['calibrationCorrect'] == True:
                 app_density = [_correct_calibration(rhoQCT, param) for rhoQCT in app_density]
         
@@ -59,9 +59,6 @@ def _assign_mat_props(part, param, vtk):
 
         # for each tet average all the modulus values
         mean_modulus = [mean(m) for m in modulus]
-
-        # ensure all modulus values above the minimum value
-        mean_modulus = [m if m > param['minVal'] else param['minVal'] for m in mean_modulus]
         
         # save
         part = _save_modulus(part, mean_modulus)
@@ -75,16 +72,13 @@ def _assign_mat_props(part, param, vtk):
         app_density = _calc_app_density(HU_data, param)
         
         # if calibration correction requested, perform correction
-        if param['calibrationCorrect'] in param.keys():
+        if 'calibrationCorrect' in param.keys():
             if param['calibrationCorrect'] == True:
                 app_density = _correct_calibration(app_density, param)
                 
         # calculate the modulus values
         moduli = _calc_modulus(app_density, param)
 
-        # ensure all modulus values above the minimum value
-        moduli = [m if m > param['minVal'] else param['minVal'] for m in moduli]
-        
         # save
         part = _save_modulus(part, moduli)
 
@@ -94,7 +88,7 @@ def _assign_mat_props(part, param, vtk):
         app_density_lookup = _calc_app_density(vtk.lookup, param)
         
         # if calibration correction requested, perform correction
-        if param['calibrationCorrect'] in param.keys():
+        if 'calibrationCorrect' in param.keys():
             if param['calibrationCorrect'] == True:
                 app_density_lookup = _correct_calibration(app_density_lookup, param)
                 
@@ -105,7 +99,6 @@ def _assign_mat_props(part, param, vtk):
 
         # find modulus for each element
         moduli = [e.integral(param['intSteps'], vtk_mod) for e in part.elements]
-
 
         # save
         part = _save_modulus(part, moduli)

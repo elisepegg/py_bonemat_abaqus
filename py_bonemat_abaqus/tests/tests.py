@@ -7,7 +7,7 @@
 # To run tests, in main py_bonemat_abaqus working directory type:
 #    >>> nosetests
 #
-# Created by Elise Pegg, University of Oxford
+# Created by Elise Pegg, University of Bath
 
 #-------------------------------------------------------------------------------
 # Import modules
@@ -199,8 +199,8 @@ class check_mesh_import_functions(TestCase):
         self.assertEqual(_confirm_eletype([range(5),range(5)]), 'linear_tet')
 
     def test_eletype_correct_class(self):
-        self.assertIsInstance(self.part2[0].elements[0], linear_hex)
-    
+        self.assertIsInstance(self.part2[0].elements[0], linear_hex)    
+
     def test_can_import_inp_file_data_correctly(self):
         self.assertEqual(self.part[0].elements[0].pts, self.inp_part[0].elements[0].pts,
                          "Inp mesh import pts incorrect")
@@ -208,10 +208,11 @@ class check_mesh_import_functions(TestCase):
                          "Inp mesh import element index incorrect")
         self.assertEqual(self.part[0].elements[0].nodes, self.inp_part[0].elements[0].nodes,
                          "Inp mesh import element nodes incorrect")
-                         
+
     def test_can_import_mulitple_node_def_one_part(self):
         self.assertEqual(_get_nodes('*Node\n1,4.0,5e-8,3\n*Node\n2,5.6,3.0,4.0\n*Element'),
                          self.nodes)
+                         
         
     def test_can_import_ntr_file_data_correctly(self):
         self.assertEqual(self.part3[0].elements[0].pts, self.ntr_part[0].elements[0].pts,
@@ -237,7 +238,7 @@ class check_node_transformation_calculations(TestCase):
         self.nodes['1'] = [1.,1.,0.]
         self.nodes2['1'] = [1.,1.,5]
         self.nodes3['1'] = [-1.,1.,5.]
-        
+                
     def test_can_get_translation_transformation_data(self):
         self.assertEqual(_get_transform_data(self.transf_str, 'Part-1'), self.trans)
 
@@ -245,7 +246,7 @@ class check_node_transformation_calculations(TestCase):
         self.assertEqual(_get_transform_data(self.transf_str2, 'Part-1'), self.trans2)
 
     def test_can_get_transformation_data_multiple_parts(self):
-        self.assertEqual(_get_transform_data(self.transf_str3, 'Part-2'), self.trans)        
+        self.assertEqual(_get_transform_data(self.transf_str3, 'Part-2'), self.trans)
 
     def test_translation_transform_correctly_applied(self):
         self.assertEqual(round(_apply_transform(self.nodes, self.trans)['1'][0],5),
@@ -308,8 +309,8 @@ class check_can_import_dicom_files(TestCase):
         os.remove(os.path.join(self.path,'test2.dcm'))
         os.remove(os.path.join(self.path,'test3.dcm'))
         os.remove(os.path.join('py_bonemat_abaqus','tests','dicom.vtk'))
-        os.rmdir(self.path)        
-        
+        os.rmdir(self.path)
+    
 #-------------------------------------------------------------------------------
 # Check classes.py functions
 #-------------------------------------------------------------------------------
@@ -776,6 +777,19 @@ def create_quad_tet_part():
     p.moduli = [1.]
     return [p]
 
+def create_wedge_part():
+    p = part('Part1','C3D6','linear_wedge')
+    pts = [[0.,0.,0.],
+          [1.,0.,0.],
+          [1.,1.,0.],
+          [0.,0.,1.],
+          [1.,0.,1.],
+          [1.,1.,1.]]
+    nodes = [repr(n+1) for n in range(6)]
+    p.add_element(linear_wedge(1, pts, nodes))
+    p.moduli = [1.]
+    return [p]
+
 def create_hex_part():
     p = part('Part1','C3D8','linear_hex')
     pts = [[0.,0.,0.],
@@ -898,7 +912,7 @@ def create_dcm_files(filenames, orientation = ['1.000000','0.000000','0.000000',
     for n in [0,1,2]:
         write_dicom(pixel_array[n], filenames[n], origins[n], orientation)
         
-def write_dicom(pixel_array,filename, origin, orientation):   
+def write_dicom(pixel_array, filename, origin, orientation):   
     file_meta = Dataset()
     file_meta.MediaStorageSOPClassUID = 'Secondary Capture Image Storage'
     file_meta.MediaStorageSOPInstanceUID = '1.3.6.1.4.1.9590.100.1.1.111165684411017669021768385720736873780'

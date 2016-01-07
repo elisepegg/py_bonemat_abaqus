@@ -3,7 +3,7 @@
 # py_bonemat_abaqus - class definitions
 # =====================================
 #
-# Created by Elise Pegg, University of Oxford
+# Created by Elise Pegg, University of Bath
 
 __all__ = ['vtk_data','linear_tet','quad_tet','linear_wedge','linear_hex','part']
 

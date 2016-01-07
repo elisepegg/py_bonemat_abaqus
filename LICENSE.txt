@@ -1,6 +1,6 @@
-py_bonemat_abaqus is a python program to help Abaqus finite element users apply material properties to models of bones using associated CT image data.
-Copyright © 2015 Elise Pegg
-Email: elise.pegg@ndorms.ox.ac.uk
+py_bonemat_abaqus is a python program to help ABAQUS finite element users apply material properties to models of bones using associated CT image data.
+Copyright © 2016 Elise Pegg
+Email: e.c.pegg@bath.ac.uk
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or any later version.
 

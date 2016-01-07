@@ -19,9 +19,8 @@
     ## integration order
     ## -----------------
     intSteps = 4 
-    
-    ## ignore certain parts (must separate with semi-colon)
-    ## ----------------------------------------------------
+
+    ## ignore certain parts
     ignore = ACL; pin
     
 ## CT calibration coefficients [rhoQCT = rhoQCTa + (rhoQCTb * HU)]

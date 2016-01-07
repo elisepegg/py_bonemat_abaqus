@@ -3,7 +3,7 @@
 # py_bonemat_abaqus - calc
 # ========================
 #
-# Created by Elise Pegg, University of Oxford
+# Created by Elise Pegg, University of Bath
 
 __all__ = ['calc_mat_props']
 
@@ -14,6 +14,8 @@ from numpy import mean, arange, digitize, array
 from copy import deepcopy
 from py_bonemat_abaqus.classes import vtk_data
 import sys
+from bisect import bisect
+from operator import itemgetter
 
 #-------------------------------------------------------------------------------
 # Functions for calculating material data
@@ -78,7 +80,7 @@ def _assign_mat_props(part, param, vtk):
                 
         # calculate the modulus values
         moduli = _calc_modulus(app_density, param)
-
+        
         # save
         part = _save_modulus(part, moduli)
 
@@ -94,11 +96,11 @@ def _assign_mat_props(part, param, vtk):
                 
         # convert vtk data to modulus values
         moduli_lookup = _calc_modulus(app_density_lookup, param)
-        #moduli_lookup = [m if m > param['minVal'] else param['minVal'] for m in moduli_lookup]
         vtk_mod = vtk_data(vtk.x, vtk.y, vtk.z, moduli_lookup)
 
         # find modulus for each element
         moduli = [e.integral(param['intSteps'], vtk_mod) for e in part.elements]
+
 
         # save
         part = _save_modulus(part, moduli)
@@ -260,22 +262,28 @@ def _limit_num_materials(moduli, gapValue, minVal, groupingDensity, Ehigh):
                 sys.exit()
             else:
                 print('\n')
-        # calculate the modulus values
-        binplace = digitize(moduli, bins)
-        new_moduli = array([minVal] * len(moduli))
-        moduli_array = array(moduli)
-        for b in range(len(bins)):
-            values = moduli_array[binplace == b].tolist()
-            if values != []:
-                if groupingDensity == 'mean':
-                    value = sum(values) / len(values)
-                elif groupingDensity == 'max':
-                    value = max(values)
+		
+		# calculate the modulus values
+        indices, sorted_moduli = zip(*sorted(enumerate(moduli), key=itemgetter(1)))
+        # work way through list adding modified modulus values
+        new_moduli = [minVal] * len(moduli)
+        minimum = False
+        while minimum == False:
+                if ((max(moduli)-gapValue) > minVal) and len(sorted_moduli) > 0:
+                        b = bisect(sorted_moduli, sorted_moduli[-1]-gapValue)
+                        if groupingDensity == 'max':
+                                val = sorted_moduli[-1]
+                        elif groupingDensity =='mean':
+                                val = sum(sorted_moduli[b:]) / len(sorted_moduli[b:])
+                        else:
+                                raise IOError("Error: groupingDensity should be 'max' or 'mean' in parameters file")
+                        for i in indices[b:]:
+                                new_moduli[i] = val
+                        sorted_moduli = sorted_moduli[:b]
+                        indices = indices[:b]                        
                 else:
-                    raise IOError("Error: groupingDensity should be 'max' or 'mean' in parameters file")
-                new_moduli[binplace == b] = value
-        
-        return new_moduli.tolist()
+                        minimum = True
+        return new_moduli
 
 def _save_modulus(part, modulus):
     """ Save modulus data in part class """

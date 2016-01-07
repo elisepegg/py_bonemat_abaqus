@@ -5,13 +5,13 @@ from os import path
 # get current path
 here = path.abspath(path.dirname(__file__))
 
-# find the version
-exec(open(path.join('py_bonemat_abaqus','version.py')).read())
-
 # function to open the readme file
 def readme():
     with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
         return f.read()
+
+# find the version
+exec(open(path.join('py_bonemat_abaqus','version.py')).read())
     
 # define setup
 setup(name='py_bonemat_abaqus',
@@ -31,7 +31,7 @@ setup(name='py_bonemat_abaqus',
       keywords=['bone', 'material', 'finite element', 'medical', 'science', 'engineering'],
       url='http://github.com/elisepegg/py_bonemat_abaqus',
       author='Elise Pegg',
-      author_email='elise.pegg@ndorms.ox.ac.uk',
+      author_email='e.c.pegg@bath.ac.uk',
       license='GPLv3',
       install_requires=['numpy','pydicom'],
       packages=find_packages(exclude=['build', '_docs', 'templates']),

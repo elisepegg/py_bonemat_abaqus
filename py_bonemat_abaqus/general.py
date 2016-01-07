@@ -3,7 +3,7 @@
 # py_bonemat_abaqus - general
 # ==========================
 #
-# Created by Elise Pegg, University of Oxford
+# Created by Elise Pegg, University of Bath
 
 __all__ = ['check_argv']
 
@@ -17,7 +17,7 @@ from numpy import expand_dims
 # Checks
 #-------------------------------------------------------------------------------
 def check_argv(argv):
-    usage = '\n\Usage: run(<parameters.txt>, <ct_data>, <job.inp>)'
+    usage = '\nUsage: run(<parameters.txt>, <ct_data>, <job.inp>)'
 
     # check number of input arguments is correct
     if len(argv) != 3:

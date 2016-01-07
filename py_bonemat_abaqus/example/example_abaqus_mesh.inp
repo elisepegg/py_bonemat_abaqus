@@ -20,7 +20,6 @@
 *Element, type=C3D10
      1,      1,      2,      3,      4,      5,      6,      7,      8,      9,     10
 *End Part
-*
 *Part, name=ACL
 *Node
       1,         -1.0,          1.0,         -1.0

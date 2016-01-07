@@ -3,7 +3,7 @@
 # py_bonemat_abaqus - run
 # ==========================
 #
-# Created by Elise Pegg, University of Oxford
+# Created by Elise Pegg, University of Bath
 
 __all__ = ['run']
 
@@ -13,14 +13,16 @@ __all__ = ['run']
 import sys, os
 from py_bonemat_abaqus import general, data_import, calc, data_output
 from py_bonemat_abaqus.version import __version__
+import time
 
 #-------------------------------------------------------------------------------
 # Define run program
 #-------------------------------------------------------------------------------
 def run(argv0, argv1, argv2):
+    t = time.time()
     print("""
     ************** PY_BONEMAT ABAQUS """ + __version__ + """ ************
-    ** Elise Pegg,  University of Oxford,   Aug 2015 **
+    *** Elise Pegg,  University of Bath,   Jan 2016 ***
     ***************************************************
     """)
     
@@ -71,4 +73,6 @@ def run(argv0, argv1, argv2):
     **   !!! Bone material assignment complete !!!   **
     ***************************************************
     """)
+    tt = time.time() - t
+    print(" Elapsed time: " + repr(tt))
     os._exit(0)

@@ -3,7 +3,7 @@
 # py_bonemat_abaqus - data import
 # ===============================
 #
-# Created by Elise Pegg, University of Oxford
+# Created by Elise Pegg, University of Bath
 
 __all__ = ['import_parameters','import_mesh','import_ct_data']
            
@@ -196,7 +196,7 @@ def _confirm_eletype(elements):
     elif len(elements[0]) == 7:
         return 'linear_wedge'
     else:
-        raise IOError('Can only analyse tetrahedral (linear or quad) and linear hex or wedge elements')
+        raise IOError('Can only analyse tetrahedral (linear or quad), linear hex or wedge elements')
 
 def _get_nodes(lines):
     """ Identifies node data from lines """
@@ -351,7 +351,7 @@ def _get_ntr_part_data(fle):
         elename = 'C3D10'
     elif (ele_type_num == 7) & (num_ele_nodes == 6): 
         ele_type = 'linear_wedge'
-        elename = 'W3D6'
+        elename = 'C3D6'
     elif (ele_type_num == 8) & (num_ele_nodes == 8):
         ele_type = 'linear_hex'
         elename = 'C3D8'
@@ -488,7 +488,7 @@ def _check_dicom_data(dicoms):
     elif not len(set([d.ImageOrientationPatient[5] for d in dicoms])) == 1:
         return "Dicom images have different col cosine orientation"
     elif [float(i) for i in d.ImageOrientationPatient] != [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]:
-        return "ImageOrientation parameter must be [1,0,0,0,1,0]"        
+        return "ImageOrientation parameter must be [1,0,0,0,1,0]"
 
 def _read_dicoms(fles, path):
     """ Reads dicom data for all files within directory """
@@ -516,13 +516,13 @@ def _convert_data_vtk(dicoms):
 
     # calculate X-coordinates
     xstart = dicoms[0].ImagePositionPatient[0]
-    xstop = xstart + (rows * xspacing)
-    X = arange(xstart, xstop, xspacing)
+    xstop = xstart + (columns * yspacing)
+    X = arange(xstart, xstop, yspacing)
     
     # calculate Y-coordinates
     ystart = dicoms[0].ImagePositionPatient[1]
-    ystop = ystart + (columns * yspacing)
-    Y = arange(ystart, ystop, yspacing)
+    ystop = ystart + (rows * xspacing)
+    Y = arange(ystart, ystop, xspacing)
     
     # calculate Z-coordinates
     zstart = min(slices)
@@ -589,4 +589,4 @@ def test_output(lines):
     if lines is None:
         raise ValueError("Error reading input file, check format")
     if lines == []:
-        raise ValueError("Error reading input file, check format")        
+        raise ValueError("Error reading input file, check format")

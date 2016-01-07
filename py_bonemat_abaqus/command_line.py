@@ -3,7 +3,7 @@
 # py_bonemat_abaqus - command line
 # ================================
 #
-# Created by Elise Pegg, University of Oxford
+# Created by Elise Pegg, University of Bath
 
 __all__ = ['main']
 
@@ -26,4 +26,3 @@ def main():
     args = parser.parse_args()
  
     run(args.p, args.ct, args.m)
-

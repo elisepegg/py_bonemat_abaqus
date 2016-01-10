@@ -154,6 +154,8 @@ def _get_part_data(lines, partname, ignore=False):
     return part
 
 def _get_transform_data(lines, partname):
+    """ Finds transformation matrix for nodes, if defined """
+
     instancelines = _get_lines(r'\*Instance,name=[-\w]+,part=' + partname, r'\*EndInstance\n', lines)
     test_output(instancelines)
     if len(instancelines.split('\n')) <3:
@@ -169,6 +171,8 @@ def _get_transform_data(lines, partname):
     return transform
 
 def _apply_transform(nodes, transform):
+    """ Applies transformation matrix for nodes """  
+
     # apply translation
     for n in nodes.keys():
         nodes[n] = [nodes[n][i]+transform[0][i] for i in [0,1,2]]        
@@ -182,11 +186,13 @@ def _apply_transform(nodes, transform):
         R = _rot_matrix(point, angle, direction)
         for n in nodes.keys():
             nodes[n] = [i[0] for i in (R*matrix(nodes[n]).T).tolist()]
-    return nodes
 
+    return nodes
     
 
 def _confirm_eletype(elements):
+    """ Checks element type can be analysed """
+
     if len(elements[0]) == 5:
         return 'linear_tet'
     elif len(elements[0]) == 11:
@@ -398,29 +404,54 @@ def import_ct_data(ct_data):
     return data
 
 def _convert_dicom_ct_data(ct_data):
-    data = _import_dicom_ct_data(ct_data)
-    _write_vtk(data, ct_data + ".vtk")
+    """ Converts Dicom scans to a VTK ascii file format """
 
-def _write_vtk(vtk, fle):
+    dicom_order, dicom_data = _import_dicom_ct_data(ct_data)
+    _write_vtk_header(dicom_data, ct_data + ".vtk")
+    _write_vtk_lookup(dicom_order, dicom_data, ct_data)
+
+def _write_vtk_header(dicom_data, fle):
+    """ Writes VTK data header """
+
+    x, y, z = _dicom_xyz_data(dicom_data)
     with open(fle,'w') as oupf:
-        dimen = [len(vtk.x), len(vtk.y), len(vtk.z)]
+        dimen = [len(x), len(y), len(z)]
         oupf.write('# vtk DataFile Version 3.0\nvtk output\nASCII\nDATASET RECTILINEAR_GRID\r\n')
         oupf.write('DIMENSIONS ' + repr(dimen[0]) + ' ' + repr(dimen[1]) + ' ' + repr(dimen[2]) + '\r\n')
         oupf.write('X_COORDINATES ' + repr(dimen[0]) + ' double\r\n')
-        oupf.write(_create_vtk_coord_str(vtk.x, 9))
+        _create_vtk_coord_str(x, 9, oupf)
         oupf.write('Y_COORDINATES ' + repr(dimen[1]) + ' double\r\n')
-        oupf.write(_create_vtk_coord_str(vtk.y, 9))
+        _create_vtk_coord_str(y, 9, oupf)
         oupf.write('Z_COORDINATES ' + repr(dimen[2]) + ' float\r\n')
-        oupf.write(_create_vtk_coord_str(vtk.z, 9))
+        _create_vtk_coord_str(z, 9, oupf)
         oupf.write('CELL_DATA ' + repr(prod([d-1 for d in dimen])) + '\r\n')
         oupf.write('POINT_DATA ' + repr(prod(dimen)) + '\r\n')
         oupf.write('SCALARS scalars short\r\n')
         oupf.write('LOOKUP_TABLE default\r\n')
-        oupf.write(_create_vtk_coord_str(vtk.lookup, 9, False))
-        
-def _create_vtk_coord_str(coords, max_num, perform_round = True):
-    """ Create string for numbers (rounded if specified) in chunks of max_num """
-    
+
+def _write_vtk_lookup(dicom_order, dicom_data, path):
+    """ Writes VTK lookup data """
+
+    fle = path + ".vtk"
+    rows = dicom_data[0][0]
+    cols = dicom_data[1][0]
+    count = 0
+    with open(fle, 'a') as oupf:
+        for s in dicom_order:
+            dic = _read_dicom(s, path)
+            data = [item for sublist in dic.pixel_array.T for item in sublist]
+            for d in data:
+                if count < 8:
+                    oupf.write(repr(d) + ' ')
+                    count += 1
+                else:
+                    oupf.write(repr(d) + '\r\n')
+                    count = 0
+        oupf.write('\r\n')
+
+def _create_vtk_coord_str(coords, max_num, oupf, perform_round=True):
+    """ Create string for numbers (rounded if specified in chunks of max_num and write to file """
+
     # perform rounding to 4 decimal places (default)
     if perform_round:
         coords = ["%0.4f" % (c,) for c in coords]
@@ -428,123 +459,133 @@ def _create_vtk_coord_str(coords, max_num, perform_round = True):
         coords = [repr(c) for c in coords]
         
     # create string
-    coords_str = ''
     for c in range(len(coords)/max_num):
-        coords_str += " ".join(coords[c * max_num : (c + 1) * max_num]) + '\r\n'
+        coords_str = " ".join(coords[c * max_num : (c + 1) * max_num]) + '\r\n'
+        oupf.write(coords_str)
     if (len(coords) % max_num) > 0:
-        coords_str += " ".join(coords[-(len(coords)%max_num):])
-    coords_str += '\r\n'
-    
-    return coords_str
+        coords_str = " ".join(coords[-(len(coords)%max_num):])
+        oupf.write(coords_str)
+        oupf.write('\r\n')
+
+    return
 
 def _import_dicom_ct_data(dicom_dir):
-    """ Returns voxel data from dicom CT images which is within elements """
+    """ Returns dicom CT image data and z order of files """
     
     # find files in folder
     dicom_files = os.listdir(dicom_dir)
-    
-    # load the dicom images
-    dicoms = _read_dicoms(dicom_files, dicom_dir)
 
     # sort by z position
-    dicoms = _sort_dicoms(dicoms)
+    dicom_order = _sort_dicoms(dicom_files, dicom_dir)
+
+    # gather data
+    dicom_data = _gather_dicom_data(dicom_order, dicom_dir)
     
     # check validity of image metadata
-    if _check_dicom_data(dicoms) is not None:
-        raise IOError("Dicom Import Error: " + _check_dicom_data(dicoms))
+    if _check_dicom_data(dicom_data) is not None:
+        raise IOError("Dicom Import Error: " + _check_dicom_data(dicom_data))
 
     # return CT voxel data
-    return _convert_data_vtk(dicoms)
+    return dicom_order, dicom_data
+
+def _gather_dicom_data(dicom_order, path):
+    """ Collect image data for the dicoms in the folder """
+
+    data = [[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
+    for d in dicom_order:
+        dic = _read_dicom(d, path)
+        data[0].append(dic.Rows)
+        data[1].append(dic.Columns)
+        data[2].append(float(dic.PixelSpacing[0]))
+        data[3].append(float(dic.PixelSpacing[1]))
+        data[4].append(float(dic.SliceThickness))
+        data[5].append(float(dic.ImagePositionPatient[0]))
+        data[6].append(float(dic.ImagePositionPatient[1]))
+        data[7].append(float(dic.ImagePositionPatient[2]))
+        data[8].append(float(dic.ImageOrientationPatient[0]))
+        data[9].append(float(dic.ImageOrientationPatient[1]))
+        data[10].append(float(dic.ImageOrientationPatient[2]))
+        data[11].append(float(dic.ImageOrientationPatient[3]))
+        data[12].append(float(dic.ImageOrientationPatient[4]))
+        data[13].append(float(dic.ImageOrientationPatient[5]))
+
+    return data
 
 def _check_dicom_data(dicoms):
     """ Check that the dicom images are valid """
     
-    if not len(set([d.Rows for d in dicoms])) == 1:
+    if not len(set(dicoms[0])) == 1:
         return "Dicom rows different sizes"
-    elif not len(set([d.Columns for d in dicoms])) == 1:
+    elif not len(set(dicoms[1])) == 1:
         return "Dicom columns different sizes"
-    elif not len(set([d.PixelSpacing[0] for d in dicoms])) == 1:
+    elif not len(set(dicoms[2])) == 1:
         return "Dicom images have different pixel spacings"
-    elif not len(set([d.PixelSpacing[1] for d in dicoms])) == 1:
+    elif not len(set(dicoms[3])) == 1:
         return "Dicom images have different pixel spacings"
-    elif not len(set([d.SliceThickness for d in dicoms])) == 1:
+    elif not len(set(dicoms[4])) == 1:
         return "Dicom images have different thicknesses"
-    elif not len(set([d.ImagePositionPatient[0] for d in dicoms])) == 1:
+    elif not len(set(dicoms[5])) == 1:
         return "Dicom images have different origins"
-    elif not len(set([d.ImagePositionPatient[1] for d in dicoms])) == 1:
+    elif not len(set(dicoms[6])) == 1:
         return "Dicom images have different origins"
-    elif not len(set(diff([float(d.ImagePositionPatient[2]) for d in dicoms]))) == 1:
+    elif not len(set(diff(dicoms[7]))) == 1:
         return "Dicom slices are not sequential"
-    elif not len(set([d.ImageOrientationPatient[0] for d in dicoms])) == 1:
+    elif not len(set(dicoms[8])) == 1:
         return "Dicom images have different row cosine orientation"
-    elif not len(set([d.ImageOrientationPatient[1] for d in dicoms])) == 1:
+    elif not len(set(dicoms[9])) == 1:
         return "Dicom images have different row cosine orientation"
-    elif not len(set([d.ImageOrientationPatient[2] for d in dicoms])) == 1:
+    elif not len(set(dicoms[10])) == 1:
         return "Dicom images have different row cosine orientation"
-    elif not len(set([d.ImageOrientationPatient[3] for d in dicoms])) == 1:
+    elif not len(set(dicoms[11])) == 1:
         return "Dicom images have different col cosine orientation"
-    elif not len(set([d.ImageOrientationPatient[4] for d in dicoms])) == 1:
+    elif not len(set(dicoms[12])) == 1:
         return "Dicom images have different col cosine orientation"
-    elif not len(set([d.ImageOrientationPatient[5] for d in dicoms])) == 1:
+    elif not len(set(dicoms[13])) == 1:
         return "Dicom images have different col cosine orientation"
-    elif [float(i) for i in d.ImageOrientationPatient] != [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]:
+    elif [dicoms[8][0],dicoms[9][0],dicoms[10][0],dicoms[11][0],dicoms[12][0],dicoms[13][0]] != [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]:
+        print([dicoms[8][0],dicoms[9][0],dicoms[10][0],dicoms[11][0],dicoms[12][0],dicoms[13][0]])
         return "ImageOrientation parameter must be [1,0,0,0,1,0]"
 
-def _read_dicoms(fles, path):
-    """ Reads dicom data for all files within directory """
+def _read_dicom(fle, path):
+    """ Reads dicom file information """
 
-    dicoms = [dicom.read_file(os.path.join(path, ds), force = True) for ds in fles]
-    dicoms = [d for d in dicoms if len(d) > 1]
+    d = dicom.read_file(os.path.join(path, fle), force = True)
 
-    return dicoms
+    return d
 
-def _sort_dicoms(dicoms):
-    """ Iterates through dicom data and returns sorted data """
+def _sort_dicoms(dicom_files, path):
+    """ Iterates through dicom files and returns sorted z order """
 
-    z = [d.ImagePositionPatient[2] for d in dicoms]
+    z = [dicom.read_file(os.path.join(path, d), force = True).ImagePositionPatient[2] for d in dicom_files]
+    dicom_order = zip(*sorted(zip(z, dicom_files)))[1]
 
-    return zip(*sorted(zip(z, dicoms)))[1]
+    return dicom_order
 
-def _convert_data_vtk(dicoms):
-    """ Changes dicom data, into vtk-like format """
+def _dicom_xyz_data(dicom_data):
+    """ Find X,Y,Z voxel grid increments from dicom data """
 
-    rows = dicoms[0].Rows
-    columns = dicoms[0].Columns
-    slices = [float(d.ImagePositionPatient[2]) for d in dicoms]
-    xspacing, yspacing = [float(s) for s in dicoms[0].PixelSpacing]
-    slice_thickness = float(dicoms[0].SliceThickness)
+    rows = dicom_data[0][0]
+    columns = dicom_data[1][0]
+    slices = dicom_data[7]
+    xspacing, yspacing = [dicom_data[2][0], dicom_data[3][0]]
+    slice_thickness = dicom_data[4][0]
 
     # calculate X-coordinates
-    xstart = dicoms[0].ImagePositionPatient[0]
+    xstart = dicom_data[5][0]
     xstop = xstart + (columns * yspacing)
     X = arange(xstart, xstop, yspacing)
     
     # calculate Y-coordinates
-    ystart = dicoms[0].ImagePositionPatient[1]
+    ystart = dicom_data[6][0]
     ystop = ystart + (rows * xspacing)
     Y = arange(ystart, ystop, xspacing)
     
     # calculate Z-coordinates
     zstart = min(slices)
-    zstop = zstart + (slice_thickness * len(dicoms))
+    zstop = zstart + (slice_thickness * len(dicom_data[0]))
     Z = arange(zstart, zstop, slice_thickness)
- 
-    # calculate lookup table
-    lookup = _create_lookup(dicoms)
     
-    return vtk_data(X, Y, Z, lookup)
-
-def _create_lookup(dicoms):
-    """ Creates a vtk lookup table from dicom dataset """
-
-    data = [d.pixel_array for d in dicoms]
-    lookup = []
-    for k in range(len(data)):
-        for j in range(len(data[0])):
-            for i in range(len(data[0][0])):
-                lookup.append(data[k][j][i])
-                
-    return lookup
+    return X,Y,Z
 
 def _import_vtk_ct_data(ct_data):
     """ Creates python array data from vtk file """
@@ -554,38 +595,42 @@ def _import_vtk_ct_data(ct_data):
     lines = _remove_eol_r(lines)
         
     # read in X data
-    xlines = _refine_vtk_lines(lines, 'X_COORDINATES', 'double', 'Y_COORDINATES')
-    X = [float(x) for x in xlines.split(' ') if len(x)>0]
+    xlines = _refine_vtk_lines(lines, 'X_COORDINATES \d+', 'double', 'Y_COORDINATES')
+    X = [float(x) for x in xlines]
     
     # read in Y data
-    ylines = _refine_vtk_lines(lines, 'Y_COORDINATES', 'double', 'Z_COORDINATES')
-    Y = [float(y) for y in ylines.split(' ') if len(y)>0]
+    ylines = _refine_vtk_lines(lines, 'Y_COORDINATES \d+', 'double', 'Z_COORDINATES')
+    Y = [float(y) for y in ylines]
     
     # read in Z data
-    zlines = _refine_vtk_lines(lines, 'Z_COORDINATES', 'float', 'CELL_DATA')
-    Z = [float(z) for z in zlines.split(' ') if len(z)>0]
-    
+    zlines = _refine_vtk_lines(lines, 'Z_COORDINATES \d+', 'float', 'CELL_DATA')
+    Z = [float(z) for z in zlines]
+
     # read in lookup data
-    lookup_lines = _refine_vtk_lines(lines, 'LOOKUP_TABLE','default','NaN')
-    lookup = [int(n) for n in lookup_lines.split(' ') if len(n)>0]
+    lookup_lines = _refine_vtk_lines(lines, 'LOOKUP_TABLE','default','')
+    lookup = [int(l) for l in lookup_lines]
+
+    # create vtk class
+    vtk = vtk_data(X,Y,Z, lookup)
 
     # return data
-    return vtk_data(X, Y, Z, lookup)
+    return vtk
     
     
 def _refine_vtk_lines(lines, key1, key2, key3):
     """ Find lines bewteen key words and remove end-of-line characters """
     
     # find lines
-    lines = lines.split(key1)[1].split(key2)[1].split(key3)[0]
-    
-    # refine lines
-    lines = lines.replace('\n', ' ')
-    for n in range(3): lines = lines.replace('  ', ' ')
-    
-    return lines
+    p = re.compile(key1+' '+key2+'\n([-.\d\n ]+)'+key3)
+    lines = p.findall(lines)[0]
+    # find numbers
+    p2 = re.compile(r'[-.\d]+')
+
+    return p2.findall(lines)
 
 def test_output(lines):
+    """ Check has imported line information """
+
     if lines is None:
         raise ValueError("Error reading input file, check format")
     if lines == []:

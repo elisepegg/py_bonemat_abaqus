@@ -63,13 +63,14 @@ def _update_abq_inp(parts, fle, poisson):
 
     # remove any blank lines and make EOL character for all operating systems
     lines = lines.replace('\r','\n')
-    lines = lines.replace('\n\n','\n')
-    lines = lines.replace('\n\n','\n')
-    lines = lines.replace('\n','\r\n')
+    while '\n\n' in lines:
+        lines = lines.replace('\n\n','\n')
 
     # write to file
     with open(fle[:-4]+'MAT.inp','w') as oupf:
-        oupf.write(lines)
+        for l in lines.split('\n')[:-1]:
+            oupf.write(l + '\n')
+		oupf.write(l)
 
 def _create_abq_inp(parts, fle, poisson):
     """ Creates brand new abaqus input file with material data 'nameMAT.inp' """
@@ -96,13 +97,14 @@ def _create_abq_inp(parts, fle, poisson):
 
     # remove any blank lines and make EOL character for all operating systems
     lines = lines.replace('\r','\n')
-    lines = lines.replace('\n\n','\n')
-    lines = lines.replace('\n\n','\n')
-    lines = lines.replace('\n','\r\n')
+    while '\n\n' in lines:
+        lines = lines.replace('\n\n','\n')
 
     # write to file
     with open(fle[:-4]+'MAT.inp','w') as oupf:
-        oupf.write(lines)
+        for l in lines.split('\n')[:-1]:
+            oupf.write(l + '\n')
+		oupf.write(l)
 
 
 #-------------------------------------------------------------------------------

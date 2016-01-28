@@ -1,5 +1,5 @@
-__version__ = "1.0.6"
-__date__ = "Jan 2016"
+__version__ = "1.0.7"
+__date__ = "Feb 2016"
 __author__ = "Elise Pegg, University of Bath"
 __copyright__ = "Copyright 2016, University of Bath, UK"
 __license__ = "GPLv3"

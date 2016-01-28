@@ -722,14 +722,11 @@ class check_outputs_valid_abaqus_input_file(TestCase):
       8,          0.0,          1.0,          0.0
       9,          0.0,          0.0,          1.0
      10,          1.0,          0.0,          0.0"""
-        self.nodelines = self.nodelines.replace('\n', '\r\n')
         self.elementlines = """*Element, type=C3D10
      1,      1,      2,      3,      4,      5,      6,      7,      8,      9,     10"""
-        self.elementlines = self.elementlines.replace('\n','\r\n')
         self.materiallines = """*Material, name=BoneMat_1
 *Elastic
 1.0, 0.35"""
-        self.materiallines = self.materiallines.replace('\n','\r\n')
         
     def test_nodes_written_correctly(self):
         self.assertTrue(self.nodelines in self.outputtext,

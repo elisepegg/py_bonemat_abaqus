@@ -436,18 +436,20 @@ def _write_vtk_lookup(dicom_order, dicom_data, path):
     rows = dicom_data[0][0]
     cols = dicom_data[1][0]
     count = 0
-    with open(fle, 'a') as oupf:
-        for s in dicom_order:
-            dic = _read_dicom(s, path)
-            data = [item for sublist in dic.pixel_array.T for item in sublist]
-            for d in data:
+    
+    for s in dicom_order:
+        dic = _read_dicom(s, path)
+        data = [item for sublist in dic.pixel_array.T for item in sublist]
+        for d in data:
+            with open(fle, 'a') as oupf:
                 if count < 8:
                     oupf.write(repr(d) + ' ')
                     count += 1
                 else:
                     oupf.write(repr(d) + '\r\n')
                     count = 0
-        oupf.write('\r\n')
+        with open(fle, 'a') as oupf:
+            oupf.write('\r\n')
 
 def _create_vtk_coord_str(coords, max_num, oupf, perform_round=True):
     """ Create string for numbers (rounded if specified in chunks of max_num and write to file """

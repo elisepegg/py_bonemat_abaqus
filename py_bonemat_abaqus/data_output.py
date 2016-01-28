@@ -70,7 +70,7 @@ def _update_abq_inp(parts, fle, poisson):
     with open(fle[:-4]+'MAT.inp','w') as oupf:
         for l in lines.split('\n')[:-1]:
             oupf.write(l + '\n')
-		oupf.write(l)
+        oupf.write(l)
 
 def _create_abq_inp(parts, fle, poisson):
     """ Creates brand new abaqus input file with material data 'nameMAT.inp' """
@@ -104,7 +104,7 @@ def _create_abq_inp(parts, fle, poisson):
     with open(fle[:-4]+'MAT.inp','w') as oupf:
         for l in lines.split('\n')[:-1]:
             oupf.write(l + '\n')
-		oupf.write(l)
+        oupf.write(l)
 
 
 #-------------------------------------------------------------------------------

@@ -62,10 +62,12 @@ def _remove_spaces(lines):
 def _remove_eol_r(lines):
     """ Replace any windows eol character (\r) with \n """
 
-    lines = lines.replace("\r", "\n")
-    lines = lines.replace("\n\n", "\n")
-
-    return lines
+    if "\r" not in lines:
+        return lines
+    else:
+        lines = lines.replace("\r", "\n")
+        lines = lines.replace("\n\n", "\n")
+        return lines
 
 
 def _refine_spaces(lines):

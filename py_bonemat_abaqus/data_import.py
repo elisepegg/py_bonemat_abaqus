@@ -416,18 +416,18 @@ def _write_vtk_header(dicom_data, fle):
     x, y, z = _dicom_xyz_data(dicom_data)
     with open(fle,'w') as oupf:
         dimen = [len(x), len(y), len(z)]
-        oupf.write('# vtk DataFile Version 3.0\nvtk output\nASCII\nDATASET RECTILINEAR_GRID\r\n')
-        oupf.write('DIMENSIONS ' + repr(dimen[0]) + ' ' + repr(dimen[1]) + ' ' + repr(dimen[2]) + '\r\n')
-        oupf.write('X_COORDINATES ' + repr(dimen[0]) + ' double\r\n')
+        oupf.write('# vtk DataFile Version 3.0\nvtk output\nASCII\nDATASET RECTILINEAR_GRID\n')
+        oupf.write('DIMENSIONS ' + repr(dimen[0]) + ' ' + repr(dimen[1]) + ' ' + repr(dimen[2]) + '\n')
+        oupf.write('X_COORDINATES ' + repr(dimen[0]) + ' double\n')
         _create_vtk_coord_str(x, 9, oupf)
-        oupf.write('Y_COORDINATES ' + repr(dimen[1]) + ' double\r\n')
+        oupf.write('Y_COORDINATES ' + repr(dimen[1]) + ' double\n')
         _create_vtk_coord_str(y, 9, oupf)
-        oupf.write('Z_COORDINATES ' + repr(dimen[2]) + ' float\r\n')
+        oupf.write('Z_COORDINATES ' + repr(dimen[2]) + ' float\n')
         _create_vtk_coord_str(z, 9, oupf)
-        oupf.write('CELL_DATA ' + repr(prod([d-1 for d in dimen])) + '\r\n')
-        oupf.write('POINT_DATA ' + repr(prod(dimen)) + '\r\n')
-        oupf.write('SCALARS scalars short\r\n')
-        oupf.write('LOOKUP_TABLE default\r\n')
+        oupf.write('CELL_DATA ' + repr(prod([d-1 for d in dimen])) + '\n')
+        oupf.write('POINT_DATA ' + repr(prod(dimen)) + '\n')
+        oupf.write('SCALARS scalars short\n')
+        oupf.write('LOOKUP_TABLE default\n')
 
 def _write_vtk_lookup(dicom_order, dicom_data, path):
     """ Writes VTK lookup data """
@@ -446,10 +446,10 @@ def _write_vtk_lookup(dicom_order, dicom_data, path):
                     oupf.write(repr(d) + ' ')
                     count += 1
                 else:
-                    oupf.write(repr(d) + '\r\n')
+                    oupf.write(repr(d) + '\n')
                     count = 0
         with open(fle, 'a') as oupf:
-            oupf.write('\r\n')
+            oupf.write('\n')
 
 def _create_vtk_coord_str(coords, max_num, oupf, perform_round=True):
     """ Create string for numbers (rounded if specified in chunks of max_num and write to file """
@@ -462,12 +462,12 @@ def _create_vtk_coord_str(coords, max_num, oupf, perform_round=True):
         
     # create string
     for c in range(len(coords)/max_num):
-        coords_str = " ".join(coords[c * max_num : (c + 1) * max_num]) + '\r\n'
+        coords_str = " ".join(coords[c * max_num : (c + 1) * max_num]) + '\n'
         oupf.write(coords_str)
     if (len(coords) % max_num) > 0:
         coords_str = " ".join(coords[-(len(coords)%max_num):])
         oupf.write(coords_str)
-        oupf.write('\r\n')
+        oupf.write('\n')
 
     return
 

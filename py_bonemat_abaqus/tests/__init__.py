@@ -1,2 +1,2 @@
 # Define all
-__all__ = ['tests_functional', 'tests', 'tests_validation']
+__all__ = ['tests_functional', 'tests']

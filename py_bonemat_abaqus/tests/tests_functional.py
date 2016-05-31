@@ -31,6 +31,11 @@ class can_check_arguments(TestCase):
     def setUp(self):
         self.argv_right = ['parameters.txt','DicomFiles','job.inp']
         self.argv_wrong = ['DicomFiles','parameters.txt','job.inp']
+        with open('parameters.txt','w') as oupf:
+            oupf.write('test py_bonemat_abaqus parameters file\n')
+        with open('job.inp','w') as oupf:
+            oupf.write('test abaqus input file\n')
+        os.mkdir('DicomFiles')
         
     def test_check_correct(self):
         self.assertTrue(check_argv(self.argv_right),
@@ -38,6 +43,11 @@ class can_check_arguments(TestCase):
         
     def test_check_incorrect(self):
         self.assertRaises(IOError, check_argv, self.argv_wrong)
+
+    def tearDown(self):
+        os.remove('job.inp')
+        os.remove('parameters.txt')
+        os.rmdir('DicomFiles')
 
 #-------------------------------------------------------------------------------
 # Can program import parameters file?
@@ -182,7 +192,7 @@ class can_import_vtk_ct_data(TestCase):
 
 class can_import_dicom_ct_data(TestCase):
     def setUp(self):
-        self.dcm_dir = os.path.join('py_bonemat_abaqus','tests','Dicoms')
+        self.dcm_dir = os.path.join('py_bonemat_abaqus','tests','dicoms')
         if os.path.exists(self.dcm_dir):
             for f in os.listdir(self.dcm_dir):
                 os.remove(os.path.join(self.dcm_dir, f))
@@ -191,10 +201,6 @@ class can_import_dicom_ct_data(TestCase):
         self.files = [os.path.join(self.dcm_dir,'test'+repr(n)+'.dcm') for n in [0,1,2]]
         create_dcm_files(self.files)
         self.vtk = import_ct_data(self.dcm_dir)
-        
-    def test_imports_ct_data_as_vtk_instance(self):
-        self.assertIsInstance(self.vtk, vtk_data,
-                              "Imported ct data is not a vtk data class")
 
     def test_imports_x_y_z_vtk_data(self):
         self.assertEqual(len(self.vtk.x), 3,
@@ -211,7 +217,6 @@ class can_import_dicom_ct_data(TestCase):
         for f in self.files:
             os.remove(f)
         os.removedirs(self.dcm_dir)
-        os.remove(os.path.join('py_bonemat_abaqus', 'tests', 'Dicoms.vtk'))
         
 #-------------------------------------------------------------------------------
 # Can calculate modulus values?

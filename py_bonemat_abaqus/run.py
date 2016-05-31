@@ -10,19 +10,27 @@ __all__ = ['run']
 #-------------------------------------------------------------------------------
 # Import modules
 #-------------------------------------------------------------------------------
-import sys, os
+import sys
+import os
 from py_bonemat_abaqus import general, data_import, calc, data_output
 from py_bonemat_abaqus.version import __version__
 import time
+from datetime import date
 
 #-------------------------------------------------------------------------------
 # Define run program
 #-------------------------------------------------------------------------------
 def run(argv0, argv1, argv2):
+    #---------------------------------------------------------------------------
+    # create welcome screen
+    #---------------------------------------------------------------------------    
     t = time.time()
+    d = date.today()
+    month = d.strftime("%B")[:3]
+    year = d.isocalendar()[0]
     print("""
     ************** PY_BONEMAT ABAQUS """ + __version__ + """ ************
-    *** Elise Pegg,  University of Bath,   Jan 2016 ***
+    *** Elise Pegg,  University of Bath,   """ + month + """ """ + repr(year) + """ ***
     ***************************************************
     """)
     
@@ -39,6 +47,7 @@ def run(argv0, argv1, argv2):
     #---------------------------------------------------------------------------
     # Import parameters
     #---------------------------------------------------------------------------
+    print("    Importing parameters file: " + param_file)
     param = data_import.import_parameters(param_file)
 
     #---------------------------------------------------------------------------

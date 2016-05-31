@@ -10,8 +10,11 @@ __all__ = ['import_parameters','import_mesh','import_ct_data']
 #-------------------------------------------------------------------------------
 # Import modules
 #-------------------------------------------------------------------------------
-import sys, os, dicom
-from numpy import mean, linspace, arange, size, zeros, floor, diff, prod, matrix
+import sys
+import os
+import dicom
+from numpy import mean, array, concatenate, linspace, arange, size
+from numpy import zeros, floor, diff, prod, matrix
 import re
 import string
 from py_bonemat_abaqus.general import _read_text, _remove_spaces, _refine_spaces
@@ -33,6 +36,9 @@ def import_parameters(fle):
     
     # identify and record data
     param = _get_param(lines)
+    
+    # check all necessary parameters have been defined
+    _checkParamInformation(param)
     
     return param
 
@@ -60,6 +66,66 @@ def _get_param(lines):
         param['ignore'] = param['ignore'].split(';')
         
     return param
+    
+def _checkParamInformation(param):
+    """ Iterates through parameters file to check contains all required information """
+    
+    # assign default parameters if not defined
+    if 'integration' not in param.keys():
+        param['integration'] = 'E'
+        print("        Note: 'integration' parameter not defined. Assigning to default, E (Equivalent to Bonemat V3)")
+        
+    if 'groupingDensity' not in param.keys():
+        param['groupingDensity'] = 'mean'
+        print("        Note: 'groupingDensity' parameter not defined. Assigning to default, 'mean'")
+    
+    # check for essential information
+    _checkNecessaryParam(param, ['integration', 'gapValue','groupingDensity','intSteps','rhoQCTa','rhoQCTb',
+                                'calibrationCorrect','minVal','poisson','numEparam'],)
+    
+    # if appropriate, check for calibration information
+    if param['calibrationCorrect'] == True:
+        _checkNecessaryParam(param, ['numCTparam'])
+        if param['numCTparam'] == 'single':
+            _checkNecessaryParam(param, ['rhoAsha1','rhoAshb1'])
+        elif param['numCTparam'] == 'triple':
+            _checkNecessaryParam(param, ['rhoThresh1','rhoThresh2','rhoAsha1','rhoAshb1', 'rhoAsha2','rhoAshb2',
+                                        'rhoAsha3','rhoAshb3'])
+        else:
+            raise IOError("Error: " + param['numCTparam'] + " is not a valid input for numCTparam.  Must be 'single' or 'triple'")  
+    
+    # if appropriate check for modulus calculation information
+    if param['numEparam'] == 'single':
+        _checkNecessaryParam(param, ['Ea1','Eb1','Ec1'])
+    elif param['numEparam'] == 'triple':
+        _checkNecessaryParam(param, ['Ea1','Eb1','Ec1', 'Ea2','Eb2','Ec2','Ea3','Eb3','Ec3'])
+    else:
+        raise IOError("Error: " + param['numEparam'] + " is not a valid input for numCTparam. Must be 'single' or 'triple'")  
+        
+    # check all values which need to be are numerical
+    _checkNumericalParam(param)       
+    
+    
+def _checkNumericalParam(param):    
+    """ Checks parameters fields which need to be numerical are """
+    
+    # check ints
+    ints = ['intSteps']
+    if param['intSteps'] != int(param['intSteps']):
+        raise IOError("Error: intSteps parameter must be an integer")
+    
+    # check floats
+    floats = ['gapValue','rhoQCTa','rhoQCTb','rhoThresh1','rhoThresh2','rhoAsha1','rhoAshb1','rhoAsha2','rhoAshb2','rhoAsha3',
+              'rhoAshb3', 'Ethresh1','Ethresh2','Ea1','Eb1','Ec1','Ea2','Eb2','Ec2','Ea3','Eb3','Ec3','minVal','poisson']
+    for f in floats:
+        if f in param.keys():
+            if type(param[f]) != float:
+                raise IOError("Error: " + param[f] + " must be a numerical value")
+    
+def _checkNecessaryParam(param, fields):
+    for f in fields:
+        if f not in param.keys():
+            raise IOError("Error: " + f + " is not defined in parameters file")    
 
 #-------------------------------------------------------------------------------
 # Functions for importing abaqus mesh data
@@ -72,6 +138,8 @@ def import_mesh(fle, param):
         mesh = _import_abq_mesh(fle, param)
     elif filetype == '.ntr':
         mesh = _import_ntr_mesh(fle)
+    elif filetype == '.neutral':
+        mesh = _import_ntr_mesh(fle)
     else:
         raise IOError('Mesh Import Error: Unknown filetype')
         
@@ -82,9 +150,11 @@ def _what_mesh_filetype(fle):
     lines = _read_text(fle)
     if '*Heading' in lines:
         return '.inp'
-    elif 'Neutral' in lines:
+    elif '1G' in lines:
         return '.ntr'
     elif '.ntr' in fle:
+        return '.ntr'
+    elif '.neutral' in fle:
         return '.ntr'
     else:
         return None
@@ -98,7 +168,7 @@ def _import_abq_mesh(fle, param):
     lines = _remove_eol_r(lines)
 
     # check for pre-existing materials
-    if '*Materials' in lines:
+    if '\n*Material' in lines:
         print('Warning: Input file: ' + fle + ' already has materials defined')
         print('         Beware duplicate material definition')
        
@@ -209,7 +279,7 @@ def _get_nodes(lines):
     
     # get lines relevant to nodes
     lines = lines.replace('*Node','**Node')
-    nodetext = re.findall(r'\*Node\n([\d,eE.\-\n]+)\*', lines)
+    nodetext = re.findall(r'\*Node\n([\d,eE.+\-\n]+)\*', lines)
     nodelines = ''.join(nodetext)
     test_output(nodelines)
     
@@ -390,25 +460,59 @@ def _get_element_ntr(line, indx):
 #-------------------------------------------------------------------------------
 # Functions for importing CT data
 #-------------------------------------------------------------------------------
+from numpy import int16, arange
+
 def import_ct_data(ct_data):
     """ Reads CT dataset from specified file or directory """
     
     if ".vtk" in ct_data:
         data = _import_vtk_ct_data(ct_data)
     else:
-        if os.path.isfile(ct_data + ".vtk") == False:
-            print("    Converting dicoms to vtk file: " + ct_data + ".vtk")
-            _convert_dicom_ct_data(ct_data)
-        data = _import_vtk_ct_data(ct_data + ".vtk")
+        data = _import_dicoms(ct_data)
         
     return data
+
+def _import_dicoms(ct_data):
+    """ Imports dicom data and rearranges voxels to vtk lookup """
+    
+    dicom_order, dicom_data = _import_dicom_ct_data(ct_data)
+    lookup = _import_dicom_lookup(dicom_order, dicom_data, ct_data)
+    X,Y,Z = _calc_dicom_xyz(dicom_data)
+    vtk = vtk_data(X,Y,Z, lookup)
+    
+    return vtk
+    
+def _import_dicom_lookup(dicom_order, dicom_data, ct_data):
+    """ Iterates through sorted dicom slices and stores lookup data """
+
+    lookup = array([])
+    for s in dicom_order:
+        dic = _read_dicom(s, ct_data)
+        pixel_array = dic.pixel_array
+        # rescale intensity if required
+        if (dicom_data[14][0]!=1.0) or (dicom_data[15][0]!=0.0):
+            pixel_array = (pixel_array * dicom_data[14][0]) + dicom_data[15][0]
+        # add data to lookup array
+        lookup = concatenate((lookup, pixel_array.flatten()))
+
+    return lookup
+    
+def _calc_dicom_xyz(dicom_data):
+    """ Calculates range of X, Y, and Z voxel co-ordinates from dicom information """
+    
+    X = arange(dicom_data[5][0], dicom_data[5][0] + (dicom_data[2][0] * dicom_data[0][0]), dicom_data[2][0])
+    Y = arange(dicom_data[6][0], dicom_data[6][0] + (dicom_data[3][0] * dicom_data[1][0]), dicom_data[3][0])
+    Z = arange(dicom_data[7][0], dicom_data[7][0] + (dicom_data[4][0] * len(dicom_data[0])), dicom_data[4][0])
+    
+    return [X,Y,Z]
 
 def _convert_dicom_ct_data(ct_data):
     """ Converts Dicom scans to a VTK ascii file format """
 
     dicom_order, dicom_data = _import_dicom_ct_data(ct_data)
+    lookup = _import_dicom_lookup(dicom_order, dicom_data, ct_data)
     _write_vtk_header(dicom_data, ct_data + ".vtk")
-    _write_vtk_lookup(dicom_order, dicom_data, ct_data)
+    _write_vtk_lookup(lookup, ct_data)
 
 def _write_vtk_header(dicom_data, fle):
     """ Writes VTK data header """
@@ -429,27 +533,21 @@ def _write_vtk_header(dicom_data, fle):
         oupf.write('SCALARS scalars short\n')
         oupf.write('LOOKUP_TABLE default\n')
 
-def _write_vtk_lookup(dicom_order, dicom_data, path):
+def _write_vtk_lookup(lookup, path):
     """ Writes VTK lookup data """
 
     fle = path + ".vtk"
-    rows = dicom_data[0][0]
-    cols = dicom_data[1][0]
     count = 0
-    
-    for s in dicom_order:
-        dic = _read_dicom(s, path)
-        data = [item for sublist in dic.pixel_array.T for item in sublist]
-        for d in data:
-            with open(fle, 'a') as oupf:
-                if count < 8:
-                    oupf.write(repr(d) + ' ')
-                    count += 1
-                else:
-                    oupf.write(repr(d) + '\n')
-                    count = 0
+    for d in lookup:
         with open(fle, 'a') as oupf:
-            oupf.write('\n')
+            if count < 8:
+                oupf.write(repr(int(d)) + ' ')
+                count += 1
+            else:
+                oupf.write(repr(int(d)) + '\n')
+                count = 0
+    with open(fle, 'a') as oupf:
+        oupf.write('\n')
 
 def _create_vtk_coord_str(coords, max_num, oupf, perform_round=True):
     """ Create string for numbers (rounded if specified in chunks of max_num and write to file """
@@ -493,14 +591,14 @@ def _import_dicom_ct_data(dicom_dir):
 def _gather_dicom_data(dicom_order, path):
     """ Collect image data for the dicoms in the folder """
 
-    data = [[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
+    data = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
     for d in dicom_order:
         dic = _read_dicom(d, path)
         data[0].append(dic.Rows)
         data[1].append(dic.Columns)
         data[2].append(float(dic.PixelSpacing[0]))
         data[3].append(float(dic.PixelSpacing[1]))
-        data[4].append(float(dic.SliceThickness))
+        data[4].append(float(dic.SpacingBetweenSlices))
         data[5].append(float(dic.ImagePositionPatient[0]))
         data[6].append(float(dic.ImagePositionPatient[1]))
         data[7].append(float(dic.ImagePositionPatient[2]))
@@ -510,43 +608,46 @@ def _gather_dicom_data(dicom_order, path):
         data[11].append(float(dic.ImageOrientationPatient[3]))
         data[12].append(float(dic.ImageOrientationPatient[4]))
         data[13].append(float(dic.ImageOrientationPatient[5]))
-
+        data[14].append(float(dic.RescaleSlope))
+        data[15].append(float(dic.RescaleIntercept))
     return data
 
 def _check_dicom_data(dicoms):
     """ Check that the dicom images are valid """
-    
-    if not len(set(dicoms[0])) == 1:
-        return "Dicom rows different sizes"
-    elif not len(set(dicoms[1])) == 1:
-        return "Dicom columns different sizes"
-    elif not len(set(dicoms[2])) == 1:
-        return "Dicom images have different pixel spacings"
-    elif not len(set(dicoms[3])) == 1:
-        return "Dicom images have different pixel spacings"
-    elif not len(set(dicoms[4])) == 1:
-        return "Dicom images have different thicknesses"
-    elif not len(set(dicoms[5])) == 1:
-        return "Dicom images have different origins"
-    elif not len(set(dicoms[6])) == 1:
-        return "Dicom images have different origins"
-    elif not len(set(diff(dicoms[7]))) == 1:
-        return "Dicom slices are not sequential"
-    elif not len(set(dicoms[8])) == 1:
-        return "Dicom images have different row cosine orientation"
-    elif not len(set(dicoms[9])) == 1:
-        return "Dicom images have different row cosine orientation"
-    elif not len(set(dicoms[10])) == 1:
-        return "Dicom images have different row cosine orientation"
-    elif not len(set(dicoms[11])) == 1:
-        return "Dicom images have different col cosine orientation"
-    elif not len(set(dicoms[12])) == 1:
-        return "Dicom images have different col cosine orientation"
-    elif not len(set(dicoms[13])) == 1:
-        return "Dicom images have different col cosine orientation"
-    elif [dicoms[8][0],dicoms[9][0],dicoms[10][0],dicoms[11][0],dicoms[12][0],dicoms[13][0]] != [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]:
-        print([dicoms[8][0],dicoms[9][0],dicoms[10][0],dicoms[11][0],dicoms[12][0],dicoms[13][0]])
-        return "ImageOrientation parameter must be [1,0,0,0,1,0]"
+    if len(dicoms[0])==1:
+        return None
+    else:    
+        if not len(set(dicoms[0])) == 1:
+            return "Dicom rows different sizes"
+        elif not len(set(dicoms[1])) == 1:
+            return "Dicom columns different sizes"
+        elif not len(set(dicoms[2])) == 1:
+            return "Dicom images have different pixel spacings"
+        elif not len(set(dicoms[3])) == 1:
+            return "Dicom images have different pixel spacings"
+        elif not len(set(dicoms[4])) == 1:
+            return "Dicom images have different thicknesses"
+        elif not len(set(dicoms[5])) == 1:
+            return "Dicom images have different origins"
+        elif not len(set(dicoms[6])) == 1:
+            return "Dicom images have different origins"
+        elif not len(set(diff(dicoms[7]))) == 1:
+            return "Dicom slices are not sequential"
+        elif not len(set(dicoms[8])) == 1:
+            return "Dicom images have different row cosine orientation"
+        elif not len(set(dicoms[9])) == 1:
+            return "Dicom images have different row cosine orientation"
+        elif not len(set(dicoms[10])) == 1:
+            return "Dicom images have different row cosine orientation"
+        elif not len(set(dicoms[11])) == 1:
+            return "Dicom images have different col cosine orientation"
+        elif not len(set(dicoms[12])) == 1:
+            return "Dicom images have different col cosine orientation"
+        elif not len(set(dicoms[13])) == 1:
+            return "Dicom images have different col cosine orientation"
+        elif [dicoms[8][0],dicoms[9][0],dicoms[10][0],dicoms[11][0],dicoms[12][0],dicoms[13][0]] != [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]:
+            print([dicoms[8][0],dicoms[9][0],dicoms[10][0],dicoms[11][0],dicoms[12][0],dicoms[13][0]])
+            return "ImageOrientation parameter must be [1,0,0,0,1,0]"
 
 def _read_dicom(fle, path):
     """ Reads dicom file information """
@@ -595,17 +696,18 @@ def _import_vtk_ct_data(ct_data):
     # read in text
     lines = _read_text(ct_data)
     lines = _remove_eol_r(lines)
+    header = lines.split('LOOKUP')[0]
         
     # read in X data
-    xlines = _refine_vtk_lines(lines, 'X_COORDINATES \d+', 'double', 'Y_COORDINATES')
+    xlines = _refine_vtk_lines(header, 'X_COORDINATES \d+', 'double', 'Y_COORDINATES')
     X = [float(x) for x in xlines]
     
     # read in Y data
-    ylines = _refine_vtk_lines(lines, 'Y_COORDINATES \d+', 'double', 'Z_COORDINATES')
+    ylines = _refine_vtk_lines(header, 'Y_COORDINATES \d+', 'double', 'Z_COORDINATES')
     Y = [float(y) for y in ylines]
     
     # read in Z data
-    zlines = _refine_vtk_lines(lines, 'Z_COORDINATES \d+', 'float', 'CELL_DATA')
+    zlines = _refine_vtk_lines(header, 'Z_COORDINATES \d+', 'double', 'CELL_DATA')
     Z = [float(z) for z in zlines]
 
     # read in lookup data
@@ -624,14 +726,21 @@ def _refine_vtk_lines(lines, key1, key2, key3):
     
     # find lines
     p = re.compile(key1+' '+key2+'\n([-.\d\n ]+)'+key3)
-    lines = p.findall(lines)[0]
+    if len(p.findall(lines))>0:
+        lines = p.findall(lines)[0]
+    else:
+        p = re.compile(key1+' '+'float'+'\n([-.\d\n ]+)'+key3)
+        if len(p.findall(lines))>0:
+               lines = p.findall(lines)[0]
+        else:
+               raise ValueError("Error reading VTK header, unrecognised format")
     # find numbers
     p2 = re.compile(r'[-.\d]+')
 
     return p2.findall(lines)
 
 def test_output(lines):
-    """ Check has imported line information """
+    """ Check lines information has been imported """
 
     if lines is None:
         raise ValueError("Error reading input file, check format")

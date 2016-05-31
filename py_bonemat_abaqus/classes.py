@@ -11,9 +11,10 @@ __all__ = ['vtk_data','linear_tet','quad_tet','linear_wedge','linear_hex','part'
 # Import modules
 #-------------------------------------------------------------------------------
 from numpy.linalg import det
-from numpy import mean, arange, matrix
+from numpy import mean, arange, matrix, array
 from copy import deepcopy
 from bisect import bisect_left, bisect_right
+from itertools import product
 
 #-------------------------------------------------------------------------------
 # Part class
@@ -50,7 +51,7 @@ class vtk_data:
         self.z = z
         self.dimen = [len(self.x), len(self.y), len(self.z)]
         self.vox = set([])
-        self.lookup = lookup
+        self.lookup = array(lookup)
 
     def get_voxels(self, tet):
         # define variables
@@ -76,15 +77,15 @@ class vtk_data:
         # find grid data
         [[xstart, xend], [ystart, yend], [zstart, zend]] = self.find_grid(tet_pts)
 
-        # test if element is smaler than voxel
+        # test if element is smaller than voxel
         if (xstart == xend - 1):
             if (ystart == yend - 1):
                 if (zstart == zend - 1):
                     in_element = True
                     ele_centroid = mean(tet_pts,0).tolist()
-                    x = [_find_l(self.x, ele_centroid[0]), _find_r(self.x, ele_centroid[0])]
-                    y = [_find_l(self.y, ele_centroid[1]), _find_r(self.y, ele_centroid[1])]
-                    z = [_find_l(self.z, ele_centroid[2]), _find_r(self.z, ele_centroid[2])]
+                    x = [bisect_right(self.x, ele_centroid[0])-1, bisect_left(self.x, ele_centroid[0])]
+                    y = [bisect_right(self.y, ele_centroid[1])-1, bisect_left(self.y, ele_centroid[1])]
+                    z = [bisect_right(self.z, ele_centroid[2])-1, bisect_left(self.z, ele_centroid[2])]
                     eight_vox = _xyz_comb(x, y, z)
                     for v in eight_vox:
                         voxel_lookup = _calc_lookup(v[0], v[1], v[2], self.dimen)
@@ -102,20 +103,15 @@ class vtk_data:
                                 self.vox.add(voxel_lookup)
                                 voxels.append(voxel_lookup)
         return voxels
-
+    
     def find_grid(self, pts, box = False):
-        # calculate grid
-        if (min(pts[0]) < min(self.x)) or (min(pts[1]) < min(self.y)) or (min(pts[2]) < min(self.z)):
-            raise ValueError("Error: Node co-ordinates:\n "+repr(pts)+"\n in mesh are outside of the CT dataset\n Dataset minimum values:\tx=" + repr(min(self.x))+"\ty="+repr(min(self.y))+"\tz="+repr(min(self.z)))
-        elif (max(pts[0]) > max(self.x)) or (max(pts[1]) > max(self.y)) or (max(pts[2]) > max(self.z)):
-            raise ValueError("Error: Node co-ordinates: "+repr(pts)+"\n in mesh are outside of the CT dataset\n Dataset max values:\tx" + repr(max(self.x))+"\ty="+repr(max(self.y))+"\tz="+repr(max(self.z)))
-        else:
-            xstart = _find_l(self.x, min(pts[0]))
-            xend = _find_r(self.x, max(pts[0]))
-            ystart = _find_l(self.y, min(pts[1]))
-            yend = _find_r(self.y, max(pts[1]))
-            zstart = _find_l(self.z, min(pts[2]))
-            zend = _find_r(self.z, max(pts[2]))            
+        # calculate grid 
+        xstart = bisect_right(self.x, min(pts[0]))-1
+        xend = bisect_left(self.x, max(pts[0]))
+        ystart = bisect_right(self.y, min(pts[1]))-1
+        yend = bisect_left(self.y, max(pts[1]))
+        zstart = bisect_right(self.z, min(pts[2]))-1
+        zend = bisect_left(self.z, max(pts[2]))            
         # if need start and end to be different (box = true) add one to end
         if box:
             if xstart == xend:
@@ -135,8 +131,8 @@ class vtk_data:
                     zend += 1
                 
         return [[xstart, xend], [ystart, yend], [zstart, zend]]
-
-    def interpolateScalar(self, xyz):
+        
+    def interpolateScalar(self, xyz, modulus, rhoAsh, rhoQCT):
         # calculate CT box surrounding the point
         [xi, yi, zi] = self.find_grid([[xyz[0]], [xyz[1]], [xyz[2]]], True) # index values
         box = [[xi[0], yi[0], zi[0]],
@@ -154,7 +150,8 @@ class vtk_data:
                   self.z[zi[origin_indx]]]
         # for each corner of the box, find the scalar value
         scalars = [self.lookup[_calc_lookup(b[0], b[1], b[2], self.dimen)] for b in box]
-        
+        # apply modulus calculation (only changes value if V3)
+        scalars = [modulus(rhoAsh(rhoQCT(s))) for s in scalars]
         # calculate the dimensions of the box
         differences = [self.x[xi[1]] - origin[0],
                        self.y[yi[1]] - origin[1],
@@ -175,21 +172,7 @@ class vtk_data:
 # Miscellaneous functions
 #-------------------------------------------------------------------------------
 def _calc_lookup(x,y,z,dimen):
-    return x + (y*dimen[0]) + (z*dimen[0]*dimen[1])
-
-def _find_r(a, x):
-    """ Finds leftmost item greater than or equal to x """
-    i = bisect_left(a, x)
-    if i != len(a):
-        return i
-    raise ValueError
-
-def _find_l(a, x):
-    """ Find rightmost value less than or equal to x """
-    i = bisect_right(a, x)
-    if i:
-        return i-1
-    raise ValueError
+    return x + (y*dimen[0]) + (z*dimen[0]*dimen[1])   
 
 def _xyz_comb(x, y, z):
     """ Find voxels within x, y, z ranges """
@@ -234,7 +217,7 @@ class linear_tet:
                 test = False
         return test
 
-    def integral(self, numSteps, vtk):
+    def integral(self, numSteps, vtk, rhoQCT = lambda a:a, rhoAsh = lambda b:b, modulus = lambda c:c):
         # calculate integral co-ordinates for the element
         step = 1.0 / numSteps
         volume = 0
@@ -264,7 +247,7 @@ class linear_tet:
                         for i in range(4):
                             x[n] += w[i]*self.pts[i][n]
                     # for each co-ordinate, find corresponding CT co-ordinate
-                    integral += vtk.interpolateScalar(x) * (detJ / 6.)
+                    integral += (vtk.interpolateScalar(x, modulus, rhoAsh, rhoQCT)) * (detJ / 6.)
 
         self.volume = volume / count
         return integral / volume
@@ -288,6 +271,7 @@ class quad_tet:
               ((p[1][i] * ((4*r)-1)) + (p[4][i] * 4*l) + (p[5][i] * 4*s) + (p[8][i] * 4*t)),                   #{dN/dr}
               ((p[2][i] * ((4*s)-1)) + (p[5][i] * 4*r) + (p[6][i] * 4*l) + (p[9][i] * 4*t)),                   #{dN/ds}
               ((p[3][i] * ((4*t)-1)) + (p[7][i] * 4*l) + (p[8][i] * 4*r) + (p[9][i] * 4*s))] for i in [0,1,2]] #{dN/dt}
+
         # make the matrix square
         J = [[1.,1.,1.,1.]] + J
 
@@ -306,7 +290,7 @@ class quad_tet:
         return J
 
 
-    def integral(self, numSteps, vtk):
+    def integral(self, numSteps, vtk, rhoQCT = lambda a:a, rhoAsh = lambda b:b, modulus = lambda c:c):
         # calculate integral co-ordinates for the element
         p = self.pts
         step = 1.0 / numSteps
@@ -344,7 +328,7 @@ class quad_tet:
                         for i in range(10):
                             x[n] += w[i]*p[i][n]
                     # for each co-ordinate, find corresponding CT co-ordinate
-                    integral += vtk.interpolateScalar(x) * (detJ / 6.)
+                    integral += (vtk.interpolateScalar(x, modulus, rhoAsh, rhoQCT)) * (detJ / 6.)
 
         self.volume = volume / count
         return integral / volume              
@@ -370,7 +354,7 @@ class linear_wedge:
         
         return J
            
-    def integral(self, numSteps, vtk):
+    def integral(self, numSteps, vtk, rhoQCT = lambda a:a, rhoAsh = lambda b:b, modulus = lambda c:c):
         # calculate integral co-ordinates for the element
         p = self.pts
         step = 1.0 / numSteps
@@ -404,7 +388,7 @@ class linear_wedge:
                         for i in range(6):
                             x[n] += w[i]*p[i][n]
                     # for each co-ordinate, find corresponding CT co-ordinate
-                    integral += vtk.interpolateScalar(x) * (detJ / 2.)
+                    integral += (vtk.interpolateScalar(x, modulus, rhoAsh, rhoQCT)) * (detJ / 2.)
 
         self.volume = volume / count
         
@@ -430,8 +414,8 @@ class linear_hex:
                (p[4][i]-p[0][i])*(1-r)*(1-s) + (p[5][i]-p[1][i])*(1+r)*(1-s) + (p[6][i]-p[2][i])*(1+r)*(1+s) +(p[7][i]-p[3][i])*(1-r)*(1+s)] for i in [0,1,2]]
 
         return J
-    
-    def integral(self, numSteps, vtk):
+        
+    def integral(self, numSteps, vtk, rhoQCT = lambda a:a, rhoAsh = lambda b:b, modulus = lambda c:c):
         # calculate integral co-ordinates for the element
         p = self.pts
         step = 1.0 / numSteps
@@ -461,7 +445,8 @@ class linear_hex:
                         for i in range(8):
                             x[n] += w[i]*p[i][n]
                     # for each co-ordinate, find corresponding CT co-ordinate
-                    integral += vtk.interpolateScalar(x) * (detJ / 8.)
+                    integral += (vtk.interpolateScalar(x, modulus, rhoAsh, rhoQCT)) * (detJ / 8.)
                     
-        self.volume = volume / (count * 8)
-        return integral / volume       
+        self.volume = volume / (count * 8) 
+
+        return integral / volume             

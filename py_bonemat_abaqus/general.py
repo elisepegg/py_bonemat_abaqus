@@ -13,10 +13,13 @@ __all__ = ['check_argv']
 from math import sin, cos, pi
 from numpy import diag, outer, array, identity, float64, dot, sqrt, atleast_1d
 from numpy import expand_dims
+import os
 #-------------------------------------------------------------------------------
 # Checks
 #-------------------------------------------------------------------------------
 def check_argv(argv):
+    """ Checks arguments valid from command line input """
+
     usage = '\nUsage: run(<parameters.txt>, <ct_data>, <job.inp>)'
 
     # check number of input arguments is correct
@@ -25,19 +28,32 @@ def check_argv(argv):
         
     # check parameters file is a .txt file
     elif ".txt" not in argv[0]:
-        raise IOError(usage + "\n\t" + argv[1] + " is not a .txt file\n")
+        raise IOError(usage + "\n\t" + argv[0] + " is not a .txt file\n")
+
+    # check parameters file exists
+    elif os.path.isfile(argv[0]) == False:
+        raise IOError(usage + "\n\t" + argv[0] + " does not exist\n")
         
     # check CTdir is a directory or a 
-    elif ("." in argv[1]) and (".vtk" not in argv[1]):
-        raise IOError(usage + "\n\t" + argv[2] + " is not a directory or .vtk file\n")
+    elif (os.path.isdir(argv[1]) == False) and (".vtk" not in argv[1]):
+        raise IOError(usage + "\n\t" + argv[1] + " is not a directory or .vtk file\n")
+
+    # if VTK file check exists
+    elif (".vtk" in argv[1]) and (os.path.isfile(argv[1]) == False):
+        raise IOError(usage + "\n\t" + argv[1] + " does not exist\n")
         
     # check job.inp is a text file
-    elif (".inp" not in argv[2]) and (".ntr" not in argv[2]):
+    elif (".inp" not in argv[2]) and (".ntr" not in argv[2]) and (".neutral" not in argv[2]):
         raise IOError(usage + "\n\t" + argv[2] + " is not an abaqus input file\n")
+    
+    # check job.inp file exists
+    elif os.path.isfile(argv[2]) == False:
+        raise IOError(usage + "\n\t" + argv[2] + " does not exist\n")    
         
     # return result
     else:
         return True
+               
 
 #-------------------------------------------------------------------------------
 # General text functions
@@ -55,19 +71,21 @@ def _remove_spaces(lines):
         
     lines = lines.replace(" ", "")
     lines = lines.replace("\r","\n")
-    lines = lines.replace("\n\n", "\n")
+    lines = lines.replace("\t","")
+    while "\n\n" in lines:
+        lines = lines.replace("\n\n", "\n")
     
     return lines
 
 def _remove_eol_r(lines):
     """ Replace any windows eol character (\r) with \n """
 
-    if "\r" not in lines:
-        return lines
-    else:
+    if "\r" in lines:
         lines = lines.replace("\r", "\n")
-        lines = lines.replace("\n\n", "\n")
-        return lines
+        while '\n\n' in lines:
+            lines = lines.replace('\n\n','\n')
+        
+    return lines
 
 
 def _refine_spaces(lines):

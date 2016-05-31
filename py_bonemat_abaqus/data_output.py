@@ -23,9 +23,19 @@ def output_abq_inp(parts, fle, poisson):
     """ Creates a new abaqus input file containing material definitions """
     
     if '.inp' in fle:
-        _update_abq_inp(parts, fle, poisson)
+        if _check_fle_exists(fle):
+            _update_abq_inp(parts, fle, poisson)
+        else:
+            _create_abq_inp(parts, fle, poisson)
     else:
         _create_abq_inp(parts, fle, poisson)
+
+def _check_fle_exists(fle):
+    files = os.listdir('.')
+    if fle in files:
+        return 1
+    else:
+        return 0
 
 def _update_abq_inp(parts, fle, poisson):
     """ Adds material data to existing abaqus file and writes to 'jobMAT.inp' """
@@ -61,16 +71,9 @@ def _update_abq_inp(parts, fle, poisson):
     # add any remaining lines
     lines = lines + _get_lines('\*End Assembly\n', '$', orig_input)
 
-    # remove any blank lines and make EOL character for all operating systems
-    lines = lines.replace('\r','\n')
-    while '\n\n' in lines:
-        lines = lines.replace('\n\n','\n')
-
     # write to file
     with open(fle[:-4]+'MAT.inp','w') as oupf:
-        for l in lines.split('\n')[:-1]:
-            oupf.write(l + '\n')
-        oupf.write(l)
+        oupf.write(lines)
 
 def _create_abq_inp(parts, fle, poisson):
     """ Creates brand new abaqus input file with material data 'nameMAT.inp' """
@@ -87,25 +90,22 @@ def _create_abq_inp(parts, fle, poisson):
     for p in parts:
         nodes = _create_node_lines(p)
         eles = _create_element_lines(p)
-        sets, set_data, set_name = _create_material_elesets(p)
-        sections = _create_sections(p, set_data, materials_data, set_name)
-        lines = lines + nodes + eles + sets + sections + '*End Part\n'
-        
+        if p.ignore == False:
+            sets, set_data, set_name = _create_material_elesets(p)
+            sections = _create_sections(p, set_data, materials_data, set_name)
+            lines = lines + nodes + eles + sets + sections + '*End Part\n'
+        else:
+            lines = lines + nodes + eles + '*End Part\n'
     # add assembly and material lines
     assembly = _create_assembly(parts)
     lines = lines + assembly + materials
 
     # remove any blank lines and make EOL character for all operating systems
-    lines = lines.replace('\r','\n')
-    while '\n\n' in lines:
-        lines = lines.replace('\n\n','\n')
+    lines = _remove_eol_r(lines)
 
     # write to file
     with open(fle[:-4]+'MAT.inp','w') as oupf:
-        for l in lines.split('\n')[:-1]:
-            oupf.write(l + '\n')
-        oupf.write(l)
-
+        oupf.write(lines)
 
 #-------------------------------------------------------------------------------
 # Functions to create sections of output file
@@ -144,12 +144,10 @@ def _create_materials(parts, poisson):
     materials = '**\n** MATERIALS\n**\n'
     moduli = _get_all_modulus_values(parts)
     materials_data = sorted(list(set(moduli)))
-    for m in range(len(materials_data)-1):
+    for m in range(len(materials_data)):
         materials = materials + '*Material, name=BoneMat_' + repr(m + 1) + '\n'
         materials = materials + '*Elastic\n' + repr(materials_data[m]) + ', ' + repr(poisson)+ '\n'
-    materials = materials + '*Material, name=BoneMat_' + repr(len(materials_data)) + '\n'
-    materials = materials + '*Elastic\n' + repr(materials_data[len(materials_data)-1]) + ', ' + repr(poisson)+ '\n'                                                       
-
+        
     return materials, materials_data
 
 def _create_material_elesets(part):

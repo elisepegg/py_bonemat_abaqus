@@ -22,9 +22,8 @@ from py_bonemat_abaqus.data_import import _get_param, _what_mesh_filetype, _conf
 from py_bonemat_abaqus.data_import import _import_vtk_ct_data, _get_transform_data
 from py_bonemat_abaqus.data_import import _apply_transform, _find_part_names, _get_nodes
 from py_bonemat_abaqus.calc import *
-from py_bonemat_abaqus.calc import _identify_voxels_in_tets, _get_hu, _calc_app_density
-from py_bonemat_abaqus.calc import _calc_modulus, _get_mod_intervals, _limit_num_materials
-from py_bonemat_abaqus.calc import _correct_calibration
+from py_bonemat_abaqus.calc import _identify_voxels_in_tets, _define_equations, _apply_equations
+from py_bonemat_abaqus.calc import  _get_mod_intervals, _limit_num_materials, _assign_mat_props
 from py_bonemat_abaqus.data_output import *
 import os, binascii
 from numpy import mean, array
@@ -45,7 +44,16 @@ class correct_check_command_line_inputs(TestCase):
         self.wrong_order = ['parameters.txt','job.inp','CTdir']
         self.wrong_paramfile = ['index.jpg','CTdir','job.inp']
         self.wrong_dir = ['parameters.txt','CTdir.txt','job.inp']
+        self.existdir = ['parameters.txt', 'NoCTdir','job.inp']
+        self.existparam = ['parameters2.txt','job.inp','CTdir']
+        self.existvtk = ['parameters.txt','job.inp','CT.vtk']
+        self.existinp = ['parameters.txt','job2.inp','CTdir']
         self.right = ['parameters.txt','CTdir','job.inp']
+        with open('job.inp','w') as oupf:
+            oupf.write('test abaqus input file\n')
+        with open('parameters.txt','w') as oupf:
+            oupf.write('test py_bonemat_abaqus parameters file\n')
+        os.mkdir('CTdir')
 
     def test_too_few_inputs(self):
         self.assertRaises(IOError, check_argv, self.too_few)
@@ -62,8 +70,25 @@ class correct_check_command_line_inputs(TestCase):
     def test_inputs_wrong_dir(self):
         self.assertRaises(IOError, check_argv, self.wrong_dir)
 
+    def test_checks_CTdir_exists(self):
+        self.assertRaises(IOError, check_argv, self.existdir)
+
+    def test_checks_param_file_exists(self):
+        self.assertRaises(IOError, check_argv, self.existparam)
+
+    def test_checks_vtk_file_exists(self):
+        self.assertRaises(IOError, check_argv, self.existvtk)
+
+    def test_checks_inp_file_exists(self):
+        self.assertRaises(IOError, check_argv, self.existinp)
+
     def test_correct_inputs(self):
         self.assertTrue(check_argv(self.right))
+
+    def tearDown(self):
+        os.remove('job.inp')
+        os.remove('parameters.txt')
+        os.rmdir('CTdir')
 
 class check_read_text_function(TestCase):
     def setUp(self):
@@ -265,7 +290,7 @@ class check_can_import_vtk_data_file(TestCase):
         create_vtk_file(self.vtk_fle)
         x = [-1., 0., 1.]
         lookup = [0, 5, 10, 5, 10, 15, 10, 15, 20,
-                  5, 10, 15, 10, 15, 20, 15, 20, 25,
+                  5, 10, 15, 25, 15, 20, 15, 20, 25,
                   10, 15, 20, 15, 20, 25, 20, 25, 30]
         self.vtk = vtk_data(x,x,x,lookup)
             
@@ -282,7 +307,7 @@ class check_can_import_vtk_data_file(TestCase):
                          "Imported vtk z data does not equal that specified")
         
     def test_can_import_lookup_vtk_data_correctly(self):
-        self.assertEqual(_import_vtk_ct_data(self.vtk_fle).lookup, self.vtk.lookup,
+        self.assertEqual(_import_vtk_ct_data(self.vtk_fle).lookup.tolist(), self.vtk.lookup.tolist(),
                          "Imported vtk lookup data does not equal that specified")
 
     def tearDown(self):
@@ -299,18 +324,17 @@ class check_can_import_dicom_files(TestCase):
                           os.path.join(self.path,'test3.dcm')])
         self.vtk = import_ct_data(self.path)
         self.lookup = [0, 5, 10, 5, 10, 15, 10, 15, 20,
-                  5, 10, 15, 10, 15, 20, 15, 20, 25,
+                  5, 10, 15, 25, 15, 20, 15, 20, 25,
                   10, 15, 20, 15, 20, 25, 20, 25, 30]
     def test_can_import_dicom_lookup_correctly(self):
-        self.assertEqual(self.vtk.lookup, self.lookup,
-                         "VTK data imported from dicoms is incorrect")
+        self.assertEqual(self.vtk.lookup.tolist(), self.lookup,
+                         self.vtk.lookup.tolist()) #"VTK data imported from dicoms is incorrect :"
     def tearDown(self):
         os.remove(os.path.join(self.path,'test1.dcm'))
         os.remove(os.path.join(self.path,'test2.dcm'))
         os.remove(os.path.join(self.path,'test3.dcm'))
-        os.remove(os.path.join('py_bonemat_abaqus','tests','dicom.vtk'))
         os.rmdir(self.path)
-    
+                     
 #-------------------------------------------------------------------------------
 # Check classes.py functions
 #-------------------------------------------------------------------------------
@@ -351,9 +375,6 @@ class check_vtk_class_find_grid_works(TestCase):
         self.assertNotEqual(self.vtk.find_grid([[0.],[0.],[0,]]), self.correct_grid,
                             "When pt=(0,0,0), the find_grid function should not output [[1, 2],[1, 2],[1, 2]]")
 
-    def test_find_grid_raises_error_outside_ct(self):
-        self.assertRaises(ValueError,self.vtk.find_grid,[[2.],[2.],[2.]])
-
     def test_box_function_works(self):
         self.assertEqual(self.vtk.find_grid([[0.],[0.],[0,]], True), self.correct_grid,
                          "Box function part of 'find_grid' does not work correctly")
@@ -373,30 +394,36 @@ class check_lookup_for_vtk(TestCase):
 
     def test_lookup_value3(self):
         self.assertEqual(self.vtk.lookup[_calc_lookup(2, 2, 2, self.vtk.dimen)], 30)
+        
+    def test_lookup_value4(self):
+        self.assertEqual(self.vtk.lookup[_calc_lookup(0, 1, 1, self.vtk.dimen)], 25)
 
 
 class check_vtk_interpolate_scalar_function(TestCase):
     def setUp(self):
         self.vtk = create_vtk([-1.,0.,1.])
         self.vtk2 = create_vtk([0.,1.,2.])
+        self.rhoQCT = lambda a:a
+        self.rhoAsh = lambda b:b
+        self.modulus = lambda c:c
 
     def test_trilinear_interpolation1(self):
-        self.assertEqual(self.vtk.interpolateScalar([0.5, 0.5, 0.5]), 22.5)
+        self.assertEqual(self.vtk.interpolateScalar([0.5, 0.5, 0.5], self.modulus, self.rhoAsh, self.rhoQCT), 22.5)
 
     def test_trilinear_interpolation2(self):
-        self.assertEqual(self.vtk.interpolateScalar([0.0,0.0,1.0]), 20.)
+        self.assertEqual(self.vtk.interpolateScalar([0.0,0.0,1.0], self.modulus, self.rhoAsh, self.rhoQCT), 20.)
 
     def test_trilinear_interpolation3(self):
-        self.assertEqual(self.vtk.interpolateScalar([0.25,0.,0.]), 16.25)
+        self.assertEqual(self.vtk.interpolateScalar([0.25,0.,0.], self.modulus, self.rhoAsh, self.rhoQCT), 16.25)
 
     def test_trilinear_interpolation4(self):
-        self.assertEqual(self.vtk.interpolateScalar([0.125,0.375,0.125]), 18.125)
+        self.assertEqual(self.vtk.interpolateScalar([0.125,0.375,0.125], self.modulus, self.rhoAsh, self.rhoQCT), 18.125)
 
     def test_trilinear_interpolation5(self):
-        self.assertEqual(self.vtk2.interpolateScalar([1.5,0,0]), 7.5)
+        self.assertEqual(self.vtk2.interpolateScalar([1.5,0,0], self.modulus, self.rhoAsh, self.rhoQCT), 7.5)
 
     def test_trilinear_interpolation_works_with_zero(self):
-        self.assertEqual(self.vtk.interpolateScalar([0.,0.,0.]), 15.)
+        self.assertEqual(self.vtk.interpolateScalar([0.,0.,0.], self.modulus, self.rhoAsh, self.rhoQCT), 15.)
 
 # linear tetrahedron
 class check_linear_tet_calculations(TestCase):
@@ -528,6 +555,81 @@ class check_linear_hex_calculations(TestCase):
 #-------------------------------------------------------------------------------
 # Check calc.py functions
 #-------------------------------------------------------------------------------
+class check_defines_equations_correctly(TestCase):
+    def setUp(self):
+        self.param = {'integration': 'E',
+                      'rhoQCTa': 0.,
+                      'rhoQCTb': 1.,
+                      'calibrationCorrect': False,
+                      'numEparam': 'single',
+                      'minVal': 0.0001,
+                      'Ea1': 0.,
+                      'Eb1': 1.,
+                      'Ec1': 1.}        
+        
+    def test_rhoQCT_equ_correct(self):
+        hu = uniform(0,2000)
+        self.param['rhoQCTa'] = uniform(0,2000)
+        self.param['rhoQCTb'] = uniform(0,2000)
+        rhoQCT, rhoAsh, modulus = _define_equations(self.param)
+        self.assertEqual(rhoQCT(hu), self.param['rhoQCTa'] + (hu*self.param['rhoQCTb']))
+        
+    def test_rhoAsh_equ_correct(self):
+        hu = uniform(0,2000)
+        self.param['rhoQCTa'] = uniform(0,2000)
+        self.param['rhoQCTb'] = uniform(0,2000)
+        rhoQCT, rhoAsh, modulus = _define_equations(self.param)
+        self.assertEqual(rhoAsh(rhoQCT(hu)), self.param['rhoQCTa'] + (hu*self.param['rhoQCTb']))
+        
+    def test_rhoAsh_equ_correct2(self):
+        hu = uniform(0,2000)
+        self.param['calibrationCorrect'] = True
+        self.param['numCTparam'] = 'single'
+        self.param['rhoAsha1'] = uniform(0,2000)
+        self.param['rhoAshb1'] = uniform(0,2000)
+        rhoQCT, rhoAsh, modulus = _define_equations(self.param)
+        self.assertEqual(rhoAsh(rhoQCT(hu)), self.param['rhoAsha1'] + (hu*self.param['rhoAshb1']))
+        
+    def test_rhoAsh_equ_correct3(self):
+        hu = uniform(0,2000)
+        self.param['calibrationCorrect'] = True
+        self.param['numCTparam'] = 'triple'
+        self.param['rhoAsha1'] = uniform(0,2000)
+        self.param['rhoAshb1'] = uniform(0,2000)
+        self.param['rhoAsha2'] = uniform(0,2000)
+        self.param['rhoAshb2'] = uniform(0,2000)
+        self.param['rhoAsha3'] = uniform(0,2000)
+        self.param['rhoAshb3'] = uniform(0,2000)
+        tmp = [uniform(0,2000), uniform(0,2000)]
+        self.param['rhoThresh1'] = min(tmp)
+        self.param['rhoThresh2'] = max(tmp)
+        self.param['rhoQCTa'] = 0.
+        self.param['rhoQCTb'] = 1.
+        rhoQCT, rhoAsh, modulus = _define_equations(self.param)
+        if rhoQCT(hu) < self.param['rhoThresh1']:
+            res = self.param['rhoAsha1'] + (self.param['rhoAshb1'] * rhoQCT(hu))
+        elif (rhoQCT(hu) >= self.param['rhoThresh1']) & (rhoQCT(hu) <= self.param['rhoThresh2']):
+            res = self.param['rhoAsha2'] + (self.param['rhoAshb2'] * rhoQCT(hu))
+        else:
+            res = self.param['rhoAsha3'] + (self.param['rhoAshb3'] * rhoQCT(hu))
+        self.assertEqual(rhoAsh(rhoQCT(hu)), res)
+        
+#    def test_modulus_equ_correct(self):
+#        hu = uniform(-2000,2000)
+#        self.param['rhoQCTa'] = 0.
+#        self.param['rhoQCTb'] = 1.
+#        self.param['calibrationCorrect'] = False
+#        self.param['Ea1'] = uniform(-200,200)
+#        self.param['Eb1'] = uniform(0,200)
+#        self.param['Ec1'] = uniform(-10,10)
+#        print(self.param)
+#        rhoQCT, rhoAsh, modulus = _define_equations(self.param)
+#        if rhoAsh(rhoQCT(hu)) <= 0:
+#            res = 0.0001
+#        else:
+#            res = self.param['Ea1'] + ((self.param['Eb1'] * hu) ** self.param['Ec1'])
+#        self.assertEqual(modulus(rhoAsh(rhoQCT(hu))), res)
+
 class check_v1_correctly_calculates_if_voxel_in_tet(TestCase):
     def setUp(self):
         self.part = create_linear_tet_part()
@@ -551,115 +653,34 @@ class check_v1_correctly_calculates_if_voxel_in_tet(TestCase):
         self.assertEqual(self.voxels_large[0], self.correct_voxels_large,
                          "Incorrect voxels found when element smaller than voxel" + repr(self.voxels_large))
 
-class check_v1_correctly_finds_HU_data(TestCase):
+class check_v1_correctly_calculates_modulus(TestCase):
     def setUp(self):
         self.vtk = create_vtk()
-        self.voxels = [2, 4, 6, 10, 12, 13, 14, 16, 18, 22, 26]
-        self.hu = _get_hu(self.voxels, self.vtk)
+        self.voxels = [[1, 2], [6, 10, 12], [13, 16, 18, 22], [26]]        
+        self.param = {'integration': 'E',
+                      'rhoQCTa': 0.,
+                      'rhoQCTb': 1.,
+                      'calibrationCorrect': False,
+                      'numEparam': 'single',
+                      'minVal': 0.0001,
+                      'Ea1': 0.,
+                      'Eb1': 1.,
+                      'Ec1': 1.}  
+        self.rhoQCT_equ, self.rhoAsh_equ, self.modulus_equ = _define_equations(self.param)  
+        self.moduli = [[_apply_equations(self.vtk.lookup[i], 
+                                     self.rhoQCT_equ, 
+                                     self.rhoAsh_equ, 
+                                     self.modulus_equ) for i in v] for v in self.voxels]  
+        self.mean_moduli = [mean(m) for m in self.moduli]
         
     def test_correct_number_hu_values(self):
-        self.assertEqual(len(self.hu), len(self.voxels),
-                         "Number of hu values (" + repr(len(self.hu)) + " different to number of voxels (" + repr(len(self.voxels)) + ")")
+        self.assertEqual(len(self.moduli), len(self.voxels),
+                         "Number of modulus values (" + repr(len(self.moduli)) \
+                         + " different to number of elements (" + repr(len(self.voxels)) + ")")
 
-    def test_are_hu_values_correct(self):
-        self.assertEqual(mean(self.hu), 15,
-                         "Mean HU values should equal 15, but equal: "+repr(mean(self.hu)))
-                
-class check_v1_correctly_calculates_app_density(TestCase):
-    def setUp(self):
-        self.param = {'rhoQCTa': uniform(-2000,2000),
-                      'rhoQCTb': uniform(-2000,2000)}
-
-    def test_app_density_calc_can_cope_with_negative(self):
-        self.assertEqual(_calc_app_density([-1], {'rhoQCTa': 0,'rhoQCTb': 1})[0],
-                        -1., "Apparent density calculation has issue with negative numbers")
-
-    def test_app_density_calc_calculates_zero(self):
-        self.assertEqual(_calc_app_density([0], {'rhoQCTa': 0, 'rhoQCTb': 1})[0],
-                         0., "Apparent density calculation has issue with zero numbers")
-
-    def test_app_density_calc_copes_random_numbers(self):
-        self.assertTrue(len(_calc_app_density([0,1,2,3,4], self.param)) > 0)
-
-class check_correctly_corrects_calibration(TestCase):
-    def setUp(self):
-        self.param_single = {'rhoAsha1': 0,
-                             'rhoAshb1': 1,
-                             'numCTparam': 'single'}
-        self.param_triple = {'numCTparam': 'triple',
-                             'rhoThresh1': 0,
-                             'rhoThresh2': 100,
-                             'rhoAsha1': 0,
-                             'rhoAshb1': 0,
-                             'rhoAsha2': 0,
-                             'rhoAshb2': 1,
-                             'rhoAsha3': 5,
-                             'rhoAshb3': 10}
-        self.random_d = [uniform(0, 99) for n in range(20)]
-
-    def test_corrects_calibration_single(self):
-        self.assertEqual(_correct_calibration([1,2,3,4], self.param_single), [1,2,3,4])
-
-    def test_corrects_calibration_triple(self):
-        self.assertEqual(_correct_calibration([-1, 5, 200], self.param_triple), [0,5,2005])
-
-    def test_corrects_calibration_random_single(self):
-        self.assertEqual(_correct_calibration(self.random_d, self.param_single), self.random_d)
-
-    def test_corrects_calibration_random_triple(self):
-        self.assertEqual(_correct_calibration(self.random_d, self.param_triple), self.random_d)
-
-class check_correctly_calculates_modulus(TestCase):
-    def setUp(self):
-        self.param = {'Ea1': uniform(0,5),
-                      'Eb1': uniform(0,5),
-                      'Ec1': uniform(-5,5),
-                      'numEparam': 'single'}
-        self.param2 = {'Ea1': 0,
-                       'Eb1': 0,
-                       'Ec1': 0,
-                       'numEparam': 'single'}
-        self.param3 = {'Ea1': 0,
-                       'Eb1': 0,
-                       'Ec1': 1,
-                       'numEparam': 'single'}
-        self.param4 = {'Ea1': 0,
-                       'Eb1': 1,
-                       'Ec1': 1,
-                       'numEparam': 'single'}
-        self.param5 = {'numEparam': 'triple',
-                       'Ethresh1': 0,
-                       'Ethresh2': 2000,
-                       'Ea1': 0,
-                       'Eb1': 0,
-                       'Ec1': 1,
-                       'Ea2': 0,
-                       'Eb2': 1,
-                       'Ec2': 1,
-                       'Ea3': 0,
-                       'Eb3': 1,
-                       'Ec3': 2}
-        self.d = [uniform(0,2000) for n in range(30)]
-        self.mod = _calc_modulus(self.d, self.param)
-
-    def test_correct_number_modulus_values_calculated(self):
-        self.assertEqual(len(self.d), len(self.mod),
-                         "Number of modulus values calculated (" + repr(len(self.mod)) +") does not match number density values (" + repr(self.d) +")")
-        
-    def test_modulus_calculation_correct1(self):
-        self.assertEqual(_calc_modulus([0,1,2,3],self.param2),[0,0,0,0],
-                         "Modulus calculation ffor modulus [0,1,2,3] and Ea,Eb,Ec all = 0 does not equal [1,1,1,1]")
-
-    def test_modulus_calculation_correct2(self):
-        self.assertEqual(_calc_modulus([0,1,2,3],self.param3),[0,0,0,0],
-                         "Modulus calculation for modulus [0,1,2,3] and Ea=0, Eb=0, Ec=1 does not equal [0,0,0,0]")
-
-    def test_modulus_calculation_correct3(self):
-        self.assertEqual(_calc_modulus([0,1,2,3],self.param4),[0,1,2,3],
-                         "Modulus calculation for modulus [0,1,2,3] and Ea=0, Eb=1, Ec=1 does not equal [0,1,2,3]")
-
-    def test_modulus_calculation_correct_triple(self):
-        self.assertEqual(_calc_modulus([-5, 500, 2000, 3000], self.param5), [0, 500, 2000, 9000000])
+    def test_are_modulus_values_correct(self):
+        self.assertEqual(self.mean_moduli, [7.5, 15, 16.25, 30],
+                         "Mean HU values should equal [7.5, 15, 16.25, 30], but equal: "+repr(self.mean_moduli))                
  
 class check_refines_modulus_correctly(TestCase):
     def setUp(self):
@@ -675,7 +696,7 @@ class check_refines_modulus_correctly(TestCase):
 
     def calc_moduli(self, moduli, max_materials):
         mod_interval = _get_mod_intervals(moduli, max_materials)
-        self.moduli_new = _limit_num_materials(moduli, mod_interval, min(moduli), 'max', max(moduli))
+        self.moduli_new = _limit_num_materials(moduli, mod_interval, min(moduli), 'max')
 
         return self
 
@@ -696,8 +717,67 @@ class check_refines_modulus_correctly(TestCase):
         self.assertTrue(extra_mat < 0, "Modulus calculation fails if all same grayscale")
 
     def test_can_cope_with_one_moduli(self):
-        self.assertEqual(_limit_num_materials([50], 1, 0, 'max', 50), [50])
+        self.assertEqual(_limit_num_materials([50], 60, 0, 'max'), [50])
+        
+class check_v2_correctly_calculates_modulus(TestCase):
+    def setUp(self):
+        self.vtk = create_vtk() 
+        self.param = {'integration': 'HU',
+                      'rhoQCTa': 2.,
+                      'rhoQCTb': .5,
+                      'calibrationCorrect': False,
+                      'numEparam': 'single',
+                      'minVal': 0.0001,
+                      'intSteps': 4,
+                      'Ea1': 1.2,
+                      'Eb1': 4.6,
+                      'Ec1': 2.6}  
+        self.part = create_hex_part()
+        self.part2 = _assign_mat_props(self.part[0], self.param, self.vtk)
+    
+    def test_if_calculates_v2_modulus_correctly(self):
+        self.assertEqual(round(self.part2.moduli[0],1), 3807.6)
+        
+class check_v3_correctly_calculates_modulus(TestCase):
+    def setUp(self):
+        self.vtk = create_vtk() 
+        self.param = {'integration': 'E',
+                      'rhoQCTa': 2.,
+                      'rhoQCTb': .5,
+                      'calibrationCorrect': False,
+                      'numEparam': 'single',
+                      'minVal': 0.0001,
+                      'intSteps': 4,
+                      'Ea1': 1.2,
+                      'Eb1': 4.6,
+                      'Ec1': 2.6}  
+        self.part = create_hex_part()
+        self.part2 = _assign_mat_props(self.part[0], self.param, self.vtk)
+    
+    def test_if_calculates_v2_modulus_correctly(self):
+        self.assertEqual(round(self.part2.moduli[0],1), 4018.8)  
 
+class check_v3_correctly_calculates_modulus_if_hu_zero(TestCase):
+    def setUp(self):
+        self.vtk = create_vtk(x = [-1., 0., 1.], lookup = [-5, 5, 10, 5, 10, 15, 10, 15, 20,
+                                                            5, 10, 15, 25, 15, 20, 15, 20, 25,
+                                                            10, 15, 20, 15, 20, 25, 20, 25, 30])
+        self.param = {'integration': 'E',
+                      'rhoQCTa': 2.,
+                      'rhoQCTb': .5,
+                      'calibrationCorrect': False,
+                      'numEparam': 'single',
+                      'minVal': 0.0001,
+                      'intSteps': 4,
+                      'Ea1': 1.2,
+                      'Eb1': 4.6,
+                      'Ec1': 2.6}  
+        self.part = create_hex_part()
+        self.part2 = _assign_mat_props(self.part[0], self.param, self.vtk)
+    
+    def test_if_calculates_v2_modulus_correctly(self):
+        self.assertEqual(round(self.part2.moduli[0],1), 4018.8)    
+        
 #-------------------------------------------------------------------------------
 # Check data_output.py functions
 #-------------------------------------------------------------------------------
@@ -801,15 +881,54 @@ def create_hex_part():
     p.add_element(linear_hex(1, pts, nodes))
     p.moduli = [1.]
     return [p]
+    
+def create_hex_mesh():
+    p = part('Part1','C3D8','linear_hex')
+    pts = [[0.,0.,0.],
+               [1.,0.,0.],
+               [1.,1.,0.],
+               [0.,1.,0.],
+               [0.,0.,1.],
+               [1.,0.,1.],
+               [1.,1.,1.],
+               [0.,1.,1.]]
+    nodes = []
+    for i in [-1,0]:
+        for j in [-1,0]:
+            for k in [-1,0]:
+                for pt in pts:
+                    n = [pt[0]+i,pt[1]+j,pt[2]+k]
+                    if n not in nodes:
+                        nodes.append([n[0],n[1],n[2]])
+    count = 0                  
+    for i in [-1,0]:
+        for j in [-1,0]:
+            for k in [-1,0]:
+                count += 1
+                nodes_c = [nodes.index([pt[0]+i,pt[1]+j,pt[2]+k])+1 for pt in pts]
+                pts_c = [[pt[0]+i,pt[1]+j,pt[2]+k] for pt in pts]
+                p.add_element(linear_hex(count, pts_c, nodes_c))
+        p.moduli = [1.,1.,1.,1.,1.,1.,1.,1.]
+    return [p]                
+            
 
 def create_vtk(x = [-1., 0., 1.], lookup = [0, 5, 10, 5, 10, 15, 10, 15, 20,
-              5, 10, 15, 10, 15, 20, 15, 20, 25,
+              5, 10, 15, 25, 15, 20, 15, 20, 25,
               10, 15, 20, 15, 20, 25, 20, 25, 30]):
     
     return vtk_data(x,x,x,lookup)
 
-def create_inp_file(filename):
-    part = create_linear_tet_part()
+def create_inp_file(filename, type='tet'):
+    if type == 'tet':
+        part = create_linear_tet_part()
+    elif type == 'quad':
+        part = create_quad_tet_part()
+    elif type == 'wedge':
+        part = create_wedge_part()
+    elif type == 'hex':
+        part = create_hex_part()
+    elif type == 'mesh':
+        part = create_hex_mesh_part()
     path = os.path.split(filename)[0]
     tmp_inp_filename = os.path.join(path,'test.ntr')
     output_abq_inp(part,tmp_inp_filename, 0.35)
@@ -896,33 +1015,68 @@ POINT_DATA 27
 SCALARS scalars short
 LOOKUP_TABLE default
 0 5 10 5 10 15 10 15 20
-5 10 15 10 15 20 15 20 25
+5 10 15 25 15 20 15 20 25
 10 15 20 15 20 25 20 25 30"""
      with open(filename, 'w') as oupf:
          oupf.write(vtk)
 
-def create_dcm_files(filenames, orientation = ['1.000000','0.000000','0.000000','0.000000','1.000000','0.000000']):
+def create_dcm_files(filenames, orientation = ['1.000000','0.000000','0.000000','0.000000','1.000000','0.000000'],
     pixel_array = array([[[0,5,10],[5,10,15],[10,15,20]],
-                         [[5,10,15],[10,15,20],[15,20,25]],
-                         [[10,15,20],[15,20,25],[20,25,30]]])
+                         [[5,10,15],[25,15,20],[15,20,25]],
+                         [[10,15,20],[15,20,25],[20,25,30]]])):
     origins = [[-1,-1,-1],[-1,-1,0],[-1,-1,1]]
     for n in [0,1,2]:
-        write_dicom(pixel_array[n], filenames[n], origins[n], orientation)
+        write_dicom(pixel_array[n], filenames[n], origins[n], origins, orientation)
         
-def write_dicom(pixel_array, filename, origin, orientation):   
+def write_dicom(pixel_array, filename, origin, origins, orientation):   
     file_meta = Dataset()
     file_meta.MediaStorageSOPClassUID = 'Secondary Capture Image Storage'
     file_meta.MediaStorageSOPInstanceUID = '1.3.6.1.4.1.9590.100.1.1.111165684411017669021768385720736873780'
     file_meta.ImplementationClassUID = '1.3.6.1.4.1.9590.100.1.0.100.4.0'
     ds = FileDataset(filename, {},file_meta = file_meta,preamble="\0"*128)
-    ds.Modality = 'WSD'
-    ds.ContentDate = str(datetime.date.today()).replace('-','')
-    ds.ContentTime = str(time.time())
-    ds.StudyInstanceUID =  '1.3.6.1.4.1.9590.100.1.1.124313977412360175234271287472804872093'
-    ds.SeriesInstanceUID = '1.3.6.1.4.1.9590.100.1.1.369231118011061003403421859172643143649'
-    ds.SOPInstanceUID =    '1.3.6.1.4.1.9590.100.1.1.111165684411017669021768385720736873780'
+    ds.ImageType= 'ORIGINAL\PRIMARY\AXIAL\CT'
     ds.SOPClassUID = 'Secondary Capture Image Storage'
-    ds.SecondaryCaptureDeviceManufctur = 'Python 2.7.3'
+    ds.SOPInstanceUID =    '1.3.6.1.4.1.9590.100.1.1.111165684411017669021768385720736873780'
+    ds.StudyDate = str(datetime.date.today()).replace('-','')
+    #ds.ImageDate = str(datetime.date.today()).replace('-','')
+    ds.StudyTime = str(time.time())
+    #ds.ImageTime = str(time.time())
+    ds.AccessionNumber = '153745645'
+    ds.Modality = 'CT'
+    ds.Manufacturer = 'PY_BONEMAT_ABAQUS'
+    ds.InstitutionName = 'UNIVERISTY_OF_BATH'
+    ds.ReferringPhysiciansName = 'NOTAPPLICABLE'
+    ds.ManufacturersModelName = 'VERSION1-0-9'
+    ds.ReferencedImageSequence = ''
+    ds.PatientsName = 'SUBJECT001'
+    ds.PatientID = ''
+    ds.PatientsBirthDate = ''
+    ds.PatientsSex = 'F'
+    ds.SliceThickness = 2.7
+    ds.KVP = 120
+    ds.SpacingBetweenSlices = 1
+    ds.DataCollectionDiameter = 430
+    ds.ReconstructionDiameter = 430.00
+    ds.DistanceSourceToDetector = 1093
+    ds.DistanceSourceToPatient = 630.
+    ds.GantryDetectorTilt = 0.0
+    ds.ScanArc = 403
+    ds.XRayTubeCurrent = 200
+    ds.Exposure = 135
+    ds.FilterType = 'F'
+    ds.PatientPosition = 'HFS'
+    ds.StudyInstanceUID = '1.3.6.1.4.1.9590.100.1.1.124313977412360175234271287472804872093'
+    ds.SeriesInstanceUID = '1.3.6.1.4.1.9590.100.1.1.111165684411017669021768385720736873780.1'
+    #ds.ReferenceSOPClassUID = 'Secondary Capture Image Storage'
+    #ds.ReferencedSOPInstanceUID = '1.3.6.1.4.1.9590.100.1.1.111165684411017669021768385720736873780'
+    #ds.ContentDate = str(datetime.date.today()).replace('-','')
+    #ds.ContentTime = str(time.time())
+    ds.StudyID = '15346254'
+    ds.SeriesNumber = '8733'
+    ds.AcquisitionNumber = 1
+    ds.ImageNumber = origins.index(origin) + 1
+    ds.SliceLocation = origin[2]
+    ds.SecondaryCaptureDeviceManufctur = 'Python 2.7.3'   
     ds.SamplesPerPixel = 1
     ds.PhotometricInterpretation = "MONOCHROME2"
     ds.PixelRepresentation = 0
@@ -933,10 +1087,12 @@ def write_dicom(pixel_array, filename, origin, orientation):
     ds.LargestImagePixelValue = '\\xff\\xff'
     ds.Columns = pixel_array.shape[0]
     ds.Rows = pixel_array.shape[1]
+    ds.PatientOrientation = ['L','P']
     ds.ImagePositionPatient = origin
     ds.ImageOrientationPatient = orientation
     ds.PixelSpacing = [1.0, 1.0]
-    ds.SliceThickness = 1
+    ds.RescaleSlope = 1.0
+    ds.RescaleIntercept = 0.0
     if pixel_array.dtype != np.uint16:
         pixel_array = pixel_array.astype(np.uint16)
     ds.PixelData = pixel_array.tostring()

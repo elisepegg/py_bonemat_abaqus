@@ -11,7 +11,7 @@ Introduction
 ------------
 This python package provides tools to add material properties of bone to an ABAQUS finite element model input file, where the modulus of each element is defined based upon its corresponding CT data using the Hounsfield Unit (HU) and input parameters.
 
-The package aims to be equivalent to Bonemat software developed by researchers in Bologna, Italy, but tailored for ABAQUS finite element users (as Bonemat cannot currently import ABAQUS input files).  The original Bonemat can be found at www.bonemat.org_, and further details can be found in published papers [1]_, [2]_, [3]_, [4]_.
+The package aims to be equivalent to Bonemat software developed by researchers in Bologna, Italy, but tailored for ABAQUS finite element users (as Bonemat cannot currently import ABAQUS input files).  The original Bonemat can be found at www.bonemat.org_, and further details can be found in published papers [1]_, [2]_, [3]_, [4]_.  For more information about the verification tests performed on this Python package, refer to the following journal article [5].
 
 .. _www.bonemat.org: https://www.bonemat.org
 
@@ -73,3 +73,4 @@ References
 .. [2] Taddei F, Schileo E, Helgason B, Cristofolini L, Viceconti M. (2007) Med Eng Phys 29 [9] p973-979: http://dx.doi.org/10.1016/j.medengphy.2006.10.014
 .. [3] Taddei F, Pancanti A, Viceconti M. (2004) Med Eng Phys 26 [1] p61-69: http://dx.doi.org/10.1016/S1350-4533(03)00138-3
 .. [4] Zannoni C, Mantovani R, Viceconti M. (1998) Med Eng Phys 20 [1] p735-740: http://dx.doi.org/10.1016/S1350-4533(98)00081-2
+.. [5] Pegg EC, Gill HS. (2016) J Biomechanics. In Press. http://dx.doi.org/10.1016/j.jbiomech.2016.07.037

@@ -25,6 +25,11 @@ Notes:
 - To run the package, you need to have three files: a parameters file (.txt), an ABAQUS input file (.inp), and a CT scan (either as a series of dicom images in a folder, or as a .vtk file).  Example files are provided in the example folder.
 - More information on this package can be found at the start of the py_bonemat_abaqus.py code
 
+-----------
+Publication
+-----------
+If you decide to use this python package for your research, when publishing we kindly request that you cite the following paper [5]_.
+
 ------------
 Installation
 ------------

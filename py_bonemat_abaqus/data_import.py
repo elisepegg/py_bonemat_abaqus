@@ -12,7 +12,7 @@ __all__ = ['import_parameters','import_mesh','import_ct_data']
 #-------------------------------------------------------------------------------
 import sys
 import os
-import dicom
+import pydicom as dicom
 from numpy import mean, array, concatenate, linspace, arange, size
 from numpy import zeros, floor, diff, prod, matrix
 import re
@@ -62,7 +62,7 @@ def _get_param(lines):
                 param[d[0]] = d[1]
                 
     # if ignore parameter present, separate out names
-    if 'ignore' in param.keys():
+    if 'ignore' in list(param.keys()):
         param['ignore'] = param['ignore'].split(';')
         
     return param
@@ -71,11 +71,11 @@ def _checkParamInformation(param):
     """ Iterates through parameters file to check contains all required information """
     
     # assign default parameters if not defined
-    if 'integration' not in param.keys():
+    if 'integration' not in list(param.keys()):
         param['integration'] = 'E'
         print("        Note: 'integration' parameter not defined. Assigning to default, E (Equivalent to Bonemat V3)")
         
-    if 'groupingDensity' not in param.keys():
+    if 'groupingDensity' not in list(param.keys()):
         param['groupingDensity'] = 'mean'
         print("        Note: 'groupingDensity' parameter not defined. Assigning to default, 'mean'")
     
@@ -118,13 +118,13 @@ def _checkNumericalParam(param):
     floats = ['gapValue','rhoQCTa','rhoQCTb','rhoThresh1','rhoThresh2','rhoAsha1','rhoAshb1','rhoAsha2','rhoAshb2','rhoAsha3',
               'rhoAshb3', 'Ethresh1','Ethresh2','Ea1','Eb1','Ec1','Ea2','Eb2','Ec2','Ea3','Eb3','Ec3','minVal','poisson']
     for f in floats:
-        if f in param.keys():
+        if f in list(param.keys()):
             if type(param[f]) != float:
                 raise IOError("Error: " + param[f] + " must be a numerical value")
     
 def _checkNecessaryParam(param, fields):
     for f in fields:
-        if f not in param.keys():
+        if f not in list(param.keys()):
             raise IOError("Error: " + f + " is not defined in parameters file")    
 
 #-------------------------------------------------------------------------------
@@ -169,7 +169,7 @@ def _import_abq_mesh(fle, param):
 
     # check for pre-existing materials
     if '\n*Material' in lines:
-        print('Warning: Input file: ' + fle + ' already has materials defined')
+        print(('Warning: Input file: ' + fle + ' already has materials defined'))
         print('         Beware duplicate material definition')
        
     # determine how many parts
@@ -178,7 +178,7 @@ def _import_abq_mesh(fle, param):
     # store data for each part
     part_data = [0] * len(parts)
     for p in parts:
-        if 'ignore' in param.keys():
+        if 'ignore' in list(param.keys()):
             if p in param['ignore']:
                 part_data[parts.index(p)] = _get_part_data(lines, p, True)
             else:
@@ -244,7 +244,7 @@ def _apply_transform(nodes, transform):
     """ Applies transformation matrix for nodes """  
 
     # apply translation
-    for n in nodes.keys():
+    for n in list(nodes.keys()):
         nodes[n] = [nodes[n][i]+transform[0][i] for i in [0,1,2]]        
     if len(transform) == 2:
         # apply rotation
@@ -254,7 +254,7 @@ def _apply_transform(nodes, transform):
                      transform[1][5]-transform[1][2]]
         angle = transform[1][6]
         R = _rot_matrix(point, angle, direction)
-        for n in nodes.keys():
+        for n in list(nodes.keys()):
             nodes[n] = [i[0] for i in (R*matrix(nodes[n]).T).tolist()]
 
     return nodes
@@ -372,7 +372,7 @@ def _create_part(name, elements, elename, eletype, nodes, transform=[[0.,0.,0]],
     # add elements to part
     for e in elements:
         pts = [nodes[n] for n in e[1:]]
-        exec('ele = ' + eletype + '(int(e[0]), pts, e[1:])')
+        ele = eval(eletype + '(int(e[0]), pts, e[1:])')
         new_part.add_element(ele)
         
     return new_part
@@ -660,7 +660,7 @@ def _sort_dicoms(dicom_files, path):
     """ Iterates through dicom files and returns sorted z order """
 
     z = [dicom.read_file(os.path.join(path, d), force = True).ImagePositionPatient[2] for d in dicom_files]
-    dicom_order = zip(*sorted(zip(z, dicom_files)))[1]
+    dicom_order = list(zip(*sorted(zip(z, dicom_files))))[1]
 
     return dicom_order
 
@@ -699,15 +699,15 @@ def _import_vtk_ct_data(ct_data):
     header = lines.split('LOOKUP')[0]
         
     # read in X data
-    xlines = _refine_vtk_lines(header, 'X_COORDINATES \d+', 'double', 'Y_COORDINATES')
+    xlines = _refine_vtk_lines(header, r'X_COORDINATES \d+', 'double', 'Y_COORDINATES')
     X = [float(x) for x in xlines]
     
     # read in Y data
-    ylines = _refine_vtk_lines(header, 'Y_COORDINATES \d+', 'double', 'Z_COORDINATES')
+    ylines = _refine_vtk_lines(header, r'Y_COORDINATES \d+', 'double', 'Z_COORDINATES')
     Y = [float(y) for y in ylines]
     
     # read in Z data
-    zlines = _refine_vtk_lines(header, 'Z_COORDINATES \d+', 'double', 'CELL_DATA')
+    zlines = _refine_vtk_lines(header, r'Z_COORDINATES \d+', 'double', 'CELL_DATA')
     Z = [float(z) for z in zlines]
 
     # read in lookup data
@@ -725,11 +725,11 @@ def _refine_vtk_lines(lines, key1, key2, key3):
     """ Find lines bewteen key words and remove end-of-line characters """
     
     # find lines
-    p = re.compile(key1+' '+key2+'\n([-.\d\n ]+)'+key3)
+    p = re.compile(key1+' '+key2+r'\n([-.\d\n ]+)'+key3)
     if len(p.findall(lines))>0:
         lines = p.findall(lines)[0]
     else:
-        p = re.compile(key1+' '+'float'+'\n([-.\d\n ]+)'+key3)
+        p = re.compile(key1+' '+'float'+r'\n([-.\d\n ]+)'+key3)
         if len(p.findall(lines))>0:
                lines = p.findall(lines)[0]
         else:

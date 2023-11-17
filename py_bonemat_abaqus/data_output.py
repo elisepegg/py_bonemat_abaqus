@@ -178,7 +178,7 @@ def _create_sections(part, sets, materials_data, set_name):
     """ Text to define sections """
     
     sections = ''
-    set_nums = sorted([int(s) for s in sets.keys()])
+    set_nums = sorted([int(s) for s in list(sets.keys())])
     for s in set_nums:
         mat = materials_data.index(sets[repr(s)]) + 1
         sections = sections + '*Solid Section, elset=' + set_name + repr(s)
@@ -275,7 +275,7 @@ def _write_ntr_input(elements, ele_code, fname, num_pts):
             for n in range(len(e.nodes)):
                 nodes[e.nodes[n]] = e.pts[n]
         node_data = []
-        for n in nodes.keys():
+        for n in list(nodes.keys()):
             node_data.append([int(n), nodes[n][0], nodes[n][1], nodes[n][2]])
         node_data = sorted(node_data)
         # determine all the element data
@@ -325,7 +325,7 @@ def _get_node_data(part):
 
     # create array of data
     node_data = []
-    for n in nodes.keys():
+    for n in list(nodes.keys()):
         node_data.append([int(n), nodes[n][0], nodes[n][1], nodes[n][2]])
 
     return sorted(node_data)
@@ -372,7 +372,7 @@ def _get_set_text(sets, set_name):
     """ Create text for defined sets """
 
     set_text = ''
-    set_nums = sorted([int(s) for s in sets.keys()])
+    set_nums = sorted([int(s) for s in list(sets.keys())])
     for m in set_nums:
         set_text = set_text + '*Elset, elset=' + set_name + repr(m) + '\n'
         elechunks = _chunks(sets[repr(m)], 16)

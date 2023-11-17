@@ -21,8 +21,8 @@ from py_bonemat_abaqus.classes import *
 from py_bonemat_abaqus.data_output import *
 import os
 from numpy import size
-from tests import create_inp_file, create_ntr_file, create_vtk_file
-from tests import create_dcm_files, create_parameters, create_linear_tet_part, create_vtk
+from .tests import create_inp_file, create_ntr_file, create_vtk_file
+from .tests import create_dcm_files, create_parameters, create_linear_tet_part, create_vtk
 
 #-------------------------------------------------------------------------------
 # Is command-line argument check working?

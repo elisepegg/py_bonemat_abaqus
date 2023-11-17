@@ -59,7 +59,7 @@ class vtk_data:
         in_element = False
 
         # check element is within voxel range
-        tet_pts = zip(*[tet.pts[0], tet.pts[1], tet.pts[2], tet.pts[3]])
+        tet_pts = list(zip(*[tet.pts[0], tet.pts[1], tet.pts[2], tet.pts[3]]))
         in_vox = True
         if (min(tet_pts[0]) < self.x[0]):
             raise ValueError('Mesh Error: Element(s) outside of CT data range. X coord min='+repr(min(tet_pts[0])))
@@ -398,7 +398,7 @@ class linear_wedge:
 class linear_hex:
     """ Hexahedral element class """
     
-    __slots__ = ("indx", "pts", "nodes", "jacobian")
+    __slots__ = ("indx", "pts", "nodes", "volume")
     
     def __init__(self, indx, pts, nodes):
         self.indx = indx

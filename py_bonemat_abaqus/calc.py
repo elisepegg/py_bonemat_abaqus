@@ -141,7 +141,7 @@ def _get_node_data(part):
 
     # create array of data
     node_data = []
-    for n in nodes.keys():
+    for n in list(nodes.keys()):
         node_data.append([int(n), nodes[n][0], nodes[n][1], nodes[n][2]])
 
     return sorted(node_data)                             
@@ -274,9 +274,9 @@ def _limit_num_materials(moduli, gapValue, minVal, groupingDensity):
         if binLength > 10000:
             print('\n    WARNING:')
             print('    You have specified a very small gap size relative to your maximum modulus')
-            print('    So your modulus "bin" size is: ' + repr(round(binLength)))
+            print(('    So your modulus "bin" size is: ' + repr(round(binLength))))
             print('    This will take so long to calculate it may crash your computer ***')
-            answ = raw_input('    Would you like to continue (y/n)')
+            answ = input('    Would you like to continue (y/n)')
             if (answ == 'n') | (answ == 'N') | (answ == 'no') | (answ == 'No') | (answ == 'NO'):
                 sys.exit()
             else:
@@ -284,7 +284,7 @@ def _limit_num_materials(moduli, gapValue, minVal, groupingDensity):
 
 	# calculate the modulus values
         bins = arange(max(moduli), minVal-gapValue, -gapValue).tolist()
-        indices, sorted_moduli = zip(*sorted(enumerate(moduli), key=itemgetter(1)))
+        indices, sorted_moduli = list(zip(*sorted(enumerate(moduli), key=itemgetter(1))))
         # work way through list adding modified modulus values
         new_moduli = [minVal] * len(moduli)
         while len(sorted_moduli) > 0:

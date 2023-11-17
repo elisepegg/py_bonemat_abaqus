@@ -174,10 +174,10 @@ class check_import_param_function(TestCase):
         self.assertTrue(len(_get_param(_remove_spaces(self.text2))) == 0,
                         "Error processing parameters file no data")
     def test_can_import_param_data(self):
-        self.assertTrue('bla' in _get_param(_remove_spaces(self.text3)).keys(),
+        self.assertTrue('bla' in list(_get_param(_remove_spaces(self.text3)).keys()),
                         "Error parameter 'bla' not imported correctly")
     def test_will_not_import_data_after_hash(self):
-        self.assertFalse('bla2' in _get_param(_remove_spaces(self.text4)).keys(),
+        self.assertFalse('bla2' in list(_get_param(_remove_spaces(self.text4)).keys()),
                          "Error parameter 'bla2' after hash has been imported")
     def test_will_import_boolean_from_param_file(self):
         self.assertEqual(_get_param(_remove_spaces(self.text6)), {'bla': True},
@@ -221,7 +221,7 @@ class check_mesh_import_functions(TestCase):
                         "Bad error handling of non-mesh file")
 
     def test_correctly_identifies_eletype(self):
-        self.assertEqual(_confirm_eletype([range(5),range(5)]), 'linear_tet')
+        self.assertEqual(_confirm_eletype([list(range(5)),list(range(5))]), 'linear_tet')
 
     def test_eletype_correct_class(self):
         self.assertIsInstance(self.part2[0].elements[0], linear_hex)    
@@ -432,7 +432,7 @@ class check_linear_tet_calculations(TestCase):
                     [1.,0.,0.],
                     [0.,1.,0.],
                     [0.,0.,1]]
-        self.tet = linear_tet(1, self.pts, range(4))
+        self.tet = linear_tet(1, self.pts, list(range(4)))
         self.vtk = create_vtk([-1.,0,1])
         self.vtk2 = create_vtk([-1,0,1],[5]*27)
         self.vtk3 = create_vtk([0,1,2],[0, 5, 10]*9)
@@ -476,7 +476,7 @@ class check_quad_tet_calculations(TestCase):
                     [0., 0., 0.5],
                     [0.5, 0., 0.5],
                     [0., 0.5, 0.5]]
-        self.tet = quad_tet(1, self.pts, range(10))
+        self.tet = quad_tet(1, self.pts, list(range(10)))
         self.vtk = create_vtk([-1.,0,1])
         self.vtk2 = create_vtk([-1,0,1],[5]*27)
         self.vtk3 = create_vtk([0,1,2],[0, 5, 10]*9)
@@ -506,7 +506,7 @@ class check_linear_wedge_calculations(TestCase):
                     [0.,0.,1.],
                     [1.,0.,1.],
                     [1.,1.,1.]]
-        self.wedge = linear_wedge(1, self.pts, range(6))
+        self.wedge = linear_wedge(1, self.pts, list(range(6)))
         self.vtk = create_vtk([-1.,0.,1.])
         self.vtk2 = create_vtk([-1,0,1],[5]*27)
         self.vtk3 = create_vtk([0,1,2],[0, 5, 10]*9)
@@ -535,7 +535,7 @@ class check_linear_hex_calculations(TestCase):
                     [1.,0.,1.],
                     [1.,1.,1.],
                     [0.,1.,1.]]
-        self.hex = linear_hex(1, self.pts, range(8))
+        self.hex = linear_hex(1, self.pts, list(range(8)))
         self.vtk = create_vtk([-1.,0.,1.])
         self.vtk2 = create_vtk([-1., 0., 1.],[5]*27)
         self.vtk3 = create_vtk([-1., 0., 1.],[0, 5, 10]*9)
@@ -689,7 +689,7 @@ class check_refines_modulus_correctly(TestCase):
         self.max_materials = 100
 
     def test_modulus_interval_calculation_works(self):
-        self.assertEqual(_get_mod_intervals(range(11), 5), 2.0,
+        self.assertEqual(_get_mod_intervals(list(range(11)), 5), 2.0,
                          "_get_mod_intervals function correct for modulus range(11), maxMat=5")
         self.assertEqual(_get_mod_intervals([10,10,10,10],5), 0.0,
                          "_get_mod_intervals function cannot cope with same greyscale")
